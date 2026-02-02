@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Coffee map</h1>
+    <p>Trace origins and brew styles across the globe.</p>
+  </div>
+</section>
+
+{% include "partials/_filters.html" %}
+
+<section class="card map-card">
+  <div id="map" class="map"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.coffeeMapData = {{ coffees|safe }};
+</script>
+{% endblock %}

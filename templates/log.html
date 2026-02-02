@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Coffee log</h1>
+    <p>Browse your latest pours and flavour memories.</p>
+  </div>
+</section>
+
+{% include "partials/_filters.html" %}
+
+<section class="cards">
+  {% for coffee in coffees %}
+    <article class="card coffee-card">
+      <div class="card-header">
+        <div>
+          <h2>{{ coffee.brand or "Unknown roaster" }}</h2>
+          <p>{{ coffee.varietal or "" }}{% if coffee.varietal and coffee.origin_region %} · {% endif %}{{ coffee.origin_region or "" }}</p>
+        </div>
+        <span class="rating">{{ coffee.rating }}/5</span>
+      </div>
+      <div class="card-body">
+        <div class="meta">
+          <span>{{ coffee.country or "" }}</span>
+          {% if coffee.location %}<span>· {{ coffee.location }}</span>{% endif %}
+        </div>
+        {% if coffee.flavours %}
+          <p class="flavours">{{ coffee.flavours }}</p>
+        {% endif %}
+        <div class="details">
+          {% if coffee.process %}<span>{{ coffee.process }}</span>{% endif %}
+          {% if coffee.brew_style %}<span>{{ coffee.brew_style }}</span>{% endif %}
+          {% if coffee.grinder %}<span>{{ coffee.grinder }}{% if coffee.grind_setting %} — {{ coffee.grind_setting }}{% endif %}</span>{% endif %}
+        </div>
+        {% if coffee.altitude_m %}
+          <div class="altitude">
+            <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
+            <div class="meter">
+              <div class="dot" style="left: {{ (coffee.altitude_m / 2500 * 100) | round(2) }}%"></div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+      <div class="card-footer">
+        <span>{{ coffee.date }}</span>
+      </div>
+    </article>
+  {% else %}
+    <p class="empty">No coffees yet. Add your first one!</p>
+  {% endfor %}
+</section>
+
+<form method="post" action="{{ url_for('seed_route') }}" class="seed">
+  <button type="submit" class="secondary">Seed synthetic data</button>
+  <p>For demo only — this will add ~60 sample coffees.</p>
+</form>
+{% endblock %}
