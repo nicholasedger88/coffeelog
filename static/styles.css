@@ -319,6 +319,50 @@ button.secondary,
   text-decoration: none;
 }
 
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  box-shadow: none;
+}
+
+.leaflet-popup-content-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px;
+  font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.popup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.popup-title {
+  font-weight: 600;
+}
+
+.popup-sub {
+  color: var(--muted);
+}
+
+.popup-meta {
+  color: var(--muted);
+}
+
+.popup-altitude {
+  color: var(--text);
+}
+
+.popup-footer {
+  margin-top: 4px;
+}
+
 .map-panel {
   display: flex;
   flex-direction: column;

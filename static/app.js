@@ -308,20 +308,29 @@ const setupMapView = () => {
       markersById[coffee.id] = marker;
     }
     bounds.push([lat, lon]);
-    const details = [
-      `<strong>${coffee.brand || "Unknown roaster"}</strong>`,
-      `${coffee.varietal || ""}`.trim(),
-      `${flagForCountry(coffee.country)}${coffee.country || ""}${
-        coffee.location ? ` · ${coffee.location}` : ""
-      }`,
-      coffee.brew_style ? `Brew: ${coffee.brew_style}` : "",
-      coffee.rating ? `Rating: ${coffee.rating}/5` : "",
-      coffee.flavours ? `Flavours: ${coffee.flavours}` : "",
-      coffee.altitude_m ? `Altitude: ${coffee.altitude_m} m` : "",
-      coffee.id ? `<a class="popup-link" href="/log?entry_id=${coffee.id}">View entry</a>` : "",
+    const title = `${coffee.brand || "Unknown roaster"}${coffee.varietal ? ` · ${coffee.varietal}` : ""}`;
+    const locationLine = `${flagForCountry(coffee.country)}${coffee.country || ""}${
+      coffee.location ? ` · ${coffee.location}` : ""
+    }`;
+    const metaLine = [
+      coffee.brew_style ? coffee.brew_style : "",
+      coffee.rating ? `Rating: ${coffee.rating} / 5` : "",
     ]
       .filter(Boolean)
-      .join("<br>");
+      .join(" · ");
+    const altitudeLine = coffee.altitude_m ? `⛰ ${coffee.altitude_m} m` : "";
+    const linkLine = coffee.id
+      ? `<a class="popup-link" href="/log?entry_id=${coffee.id}">View entry</a>`
+      : "";
+    const details = `
+      <div class="popup-card">
+        <div class="popup-title">${title}</div>
+        ${locationLine ? `<div class="popup-sub">${locationLine}</div>` : ""}
+        ${metaLine ? `<div class="popup-meta">${metaLine}</div>` : ""}
+        ${altitudeLine ? `<div class="popup-altitude">${altitudeLine}</div>` : ""}
+        ${linkLine ? `<div class="popup-footer">${linkLine}</div>` : ""}
+      </div>
+    `;
     marker.bindPopup(details);
   });
 
