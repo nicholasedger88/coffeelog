@@ -93,16 +93,52 @@ const setupAddMap = () => {
   const latInput = document.getElementById("latitude");
   const lonInput = document.getElementById("longitude");
   const altitudeInput = document.getElementById("altitude");
+  const countryInput = document.getElementById("country");
+  const locationInput = document.getElementById("location");
+
+  let manualCountry = false;
+  let manualLocation = false;
+  let manualAltitude = false;
+  let clickToken = 0;
 
   const fetchElevation = async (lat, lon) => {
+    const token = clickToken;
     try {
       const response = await fetch(`/api/elevation?lat=${lat}&lon=${lon}`);
       const result = await response.json();
+      if (token !== clickToken || manualAltitude) {
+        return;
+      }
       if (result.ok && altitudeInput) {
         altitudeInput.value = result.altitude_m;
       }
     } catch (error) {
       // Ignore elevation failures silently.
+    }
+  };
+
+  const fetchReverseGeocode = async (lat, lon) => {
+    const token = clickToken;
+    try {
+      const response = await fetch("/api/reverse_geocode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lon }),
+      });
+      const result = await response.json();
+      if (token !== clickToken) {
+        return;
+      }
+      if (result.ok) {
+        if (countryInput && !manualCountry && result.country) {
+          countryInput.value = result.country;
+        }
+        if (locationInput && !manualLocation && result.location) {
+          locationInput.value = result.location;
+        }
+      }
+    } catch (error) {
+      // Ignore reverse geocode failures silently.
     }
   };
 
@@ -112,10 +148,15 @@ const setupAddMap = () => {
 
   map.on("click", (event) => {
     const { lat, lng } = event.latlng;
+    clickToken += 1;
+    manualCountry = false;
+    manualLocation = false;
+    manualAltitude = false;
     latInput.value = lat.toFixed(5);
     lonInput.value = lng.toFixed(5);
     setMarker(lat, lng);
     fetchElevation(lat.toFixed(5), lng.toFixed(5));
+    fetchReverseGeocode(lat.toFixed(5), lng.toFixed(5));
   });
 
   const syncFromInputs = () => {
@@ -128,6 +169,15 @@ const setupAddMap = () => {
 
   latInput?.addEventListener("change", syncFromInputs);
   lonInput?.addEventListener("change", syncFromInputs);
+  altitudeInput?.addEventListener("input", () => {
+    manualAltitude = true;
+  });
+  countryInput?.addEventListener("input", () => {
+    manualCountry = true;
+  });
+  locationInput?.addEventListener("input", () => {
+    manualLocation = true;
+  });
 
   const parseButton = document.getElementById("parse-maps");
   const linkInput = document.getElementById("maps-link");
@@ -143,11 +193,16 @@ const setupAddMap = () => {
       const result = await response.json();
       if (result.ok) {
         status.textContent = "Coordinates updated.";
+        clickToken += 1;
+        manualCountry = false;
+        manualLocation = false;
+        manualAltitude = false;
         latInput.value = result.lat.toFixed(5);
         lonInput.value = result.lon.toFixed(5);
         setMarker(result.lat, result.lon);
         map.setView([result.lat, result.lon], 7);
         fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
+        fetchReverseGeocode(result.lat.toFixed(5), result.lon.toFixed(5));
       } else {
         status.textContent = result.error || "Unable to parse.";
       }
@@ -165,11 +220,27 @@ const setupMapView = () => {
   }).addTo(map);
 
   const bounds = [];
+  const ratingColors = {
+    5: "#1d4ed8",
+    4: "#3b82f6",
+    3: "#cbd5e1",
+    2: "#fca5a5",
+    1: "#ef4444",
+  };
+
   window.coffeeMapData.forEach((coffee) => {
     const lat = coffee.latitude;
     const lon = coffee.longitude;
     if (lat === null || lon === null) return;
-    const marker = L.marker([lat, lon]).addTo(map);
+    const rating = coffee.rating || 3;
+    const color = ratingColors[rating] || ratingColors[3];
+    const marker = L.circleMarker([lat, lon], {
+      radius: 6,
+      weight: 1,
+      color,
+      fillColor: color,
+      fillOpacity: 0.85,
+    }).addTo(map);
     bounds.push([lat, lon]);
     const details = [
       `<strong>${coffee.brand || "Unknown roaster"}</strong>`,
@@ -188,6 +259,22 @@ const setupMapView = () => {
   if (bounds.length) {
     map.fitBounds(bounds, { padding: [30, 30] });
   }
+
+  const legend = L.control({ position: "bottomright" });
+  legend.onAdd = () => {
+    const div = document.createElement("div");
+    div.className = "map-legend";
+    div.innerHTML = `
+      <div class="map-legend__title">Rating</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[5]}"></span>5</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[4]}"></span>4</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[3]}"></span>3</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[2]}"></span>2</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[1]}"></span>1</div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
 };
 
 document.addEventListener("DOMContentLoaded", () => {

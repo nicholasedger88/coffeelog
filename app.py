@@ -393,6 +393,54 @@ def elevation() -> Any:
         return jsonify({"ok": False, "error": "Elevation lookup failed."})
 
 
+@app.route("/api/reverse_geocode", methods=["POST"])
+def reverse_geocode() -> Any:
+    data = request.get_json(silent=True) or {}
+    lat = data.get("lat")
+    lon = data.get("lon")
+    if lat is None or lon is None:
+        return jsonify({"ok": False, "error": "Missing coordinates."})
+    try:
+        lat_value = float(lat)
+        lon_value = float(lon)
+    except (TypeError, ValueError):
+        return jsonify({"ok": False, "error": "Invalid coordinates."})
+
+    if not (-90 <= lat_value <= 90 and -180 <= lon_value <= 180):
+        return jsonify({"ok": False, "error": "Coordinates out of range."})
+
+    try:
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={
+                "format": "jsonv2",
+                "lat": lat_value,
+                "lon": lon_value,
+                "zoom": 10,
+                "addressdetails": 1,
+            },
+            headers={"User-Agent": "CoffeeLog/1.0 (coffeelog@example.com)"},
+            timeout=6,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        address = payload.get("address", {})
+        country = address.get("country")
+        location = (
+            address.get("city")
+            or address.get("town")
+            or address.get("village")
+            or address.get("county")
+            or address.get("state")
+            or address.get("region")
+        )
+        if not country and not location:
+            return jsonify({"ok": False, "error": "No location found."})
+        return jsonify({"ok": True, "country": country, "location": location})
+    except (requests.RequestException, ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Reverse geocoding failed."})
+
+
 @app.route("/seed", methods=["POST"])
 def seed_route() -> Any:
     from seed import seed_data
