@@ -7,7 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import pycountry
 import requests
+import reverse_geocoder as rg
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -454,6 +456,7 @@ def reverse_geocode() -> Any:
     if not (-90 <= lat_value <= 90 and -180 <= lon_value <= 180):
         return jsonify({"ok": False, "error": "Coordinates out of range."})
 
+    nominatim_ok = False
     try:
         response = requests.get(
             "https://nominatim.openstreetmap.org/reverse",
@@ -464,7 +467,10 @@ def reverse_geocode() -> Any:
                 "zoom": 10,
                 "addressdetails": 1,
             },
-            headers={"User-Agent": "CoffeeLog/1.0 (coffeelog@example.com)"},
+            headers={
+                "User-Agent": "CoffeeLog/1.0 (coffeelog@example.com)",
+                "Accept": "application/json",
+            },
             timeout=5,
         )
         response.raise_for_status()
@@ -478,15 +484,55 @@ def reverse_geocode() -> Any:
             or address.get("hamlet")
             or address.get("county")
             or address.get("state")
-            or address.get("region")
         )
-        if not country and not location:
-            app.logger.warning("Reverse geocode failed: no location for lat=%s lon=%s", lat, lon)
-            return jsonify({"ok": False, "error": "No location found."})
-        app.logger.info("Reverse geocode success: country=%s location=%s", country, location)
-        return jsonify({"ok": True, "country": country, "location": location or ""})
+        if country or location:
+            nominatim_ok = True
+            app.logger.info("reverse_geocode lat=%s lon=%s nominatim=success", lat, lon)
+            return jsonify(
+                {
+                    "ok": True,
+                    "country": country or "",
+                    "location": location or "",
+                    "source": "nominatim",
+                }
+            )
+        app.logger.warning("reverse_geocode lat=%s lon=%s nominatim=empty -> offline=attempt", lat, lon)
     except (requests.RequestException, ValueError, TypeError):
-        app.logger.exception("Reverse geocode error for lat=%s lon=%s", lat, lon)
+        app.logger.warning("reverse_geocode lat=%s lon=%s nominatim=fail -> offline=attempt", lat, lon)
+
+    try:
+        results = rg.search((lat_value, lon_value), mode=1)
+        if not results:
+            app.logger.warning("reverse_geocode lat=%s lon=%s nominatim=fail -> offline=empty", lat, lon)
+            return jsonify({"ok": False, "error": "Reverse geocoding failed."})
+        result = results[0]
+        country_code = result.get("cc")
+        country_name = ""
+        if country_code:
+            country_obj = pycountry.countries.get(alpha_2=country_code)
+            country_name = country_obj.name if country_obj else ""
+        name = result.get("name", "")
+        admin1 = result.get("admin1", "")
+        location = name
+        if admin1 and admin1 not in location:
+            location = f"{name}, {admin1}" if name else admin1
+        if not country_name and not location:
+            app.logger.warning("reverse_geocode lat=%s lon=%s nominatim=fail -> offline=empty", lat, lon)
+            return jsonify({"ok": False, "error": "Reverse geocoding failed."})
+        app.logger.info("reverse_geocode lat=%s lon=%s nominatim=fail -> offline=success", lat, lon)
+        return jsonify(
+            {
+                "ok": True,
+                "country": country_name,
+                "location": location,
+                "source": "offline",
+            }
+        )
+    except Exception:
+        if nominatim_ok:
+            app.logger.info("reverse_geocode lat=%s lon=%s nominatim=success -> offline=skip", lat, lon)
+        else:
+            app.logger.warning("reverse_geocode lat=%s lon=%s nominatim=fail -> offline=fail", lat, lon)
         return jsonify({"ok": False, "error": "Reverse geocoding failed."})
 
 
