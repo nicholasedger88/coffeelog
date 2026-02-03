@@ -3,19 +3,26 @@
 {% block content %}
 <section class="page-header">
   <div>
-    <h1>Altitude</h1>
-    <p>See coffees on a topographic backdrop.</p>
+    <h1>Mountain</h1>
+    <p>Altitude clusters across rating bands.</p>
   </div>
 </section>
 
 {% include "partials/_filters.html" %}
 
-<section class="card map-card">
-  <div id="altitude-map" class="map map--tall"></div>
+<section class="card chart-card">
+  {% if coffees|length == 0 %}
+    <p class="chart-empty">No altitude data yet.</p>
+  {% else %}
+    <div class="chart-wrap">
+      <canvas id="altitude-chart"></canvas>
+    </div>
+  {% endif %}
 </section>
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
   window.coffeeAltitudeData = {{ coffees|safe }};
 </script>

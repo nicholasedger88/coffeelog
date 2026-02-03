@@ -276,6 +276,7 @@ const setupMapView = () => {
   }).addTo(map);
 
   const bounds = [];
+  const markersById = {};
   const ratingColors = {
     5: "#1d4ed8",
     4: "#3b82f6",
@@ -303,6 +304,9 @@ const setupMapView = () => {
       fillColor: color,
       fillOpacity: 0.85,
     }).addTo(map);
+    if (coffee.id) {
+      markersById[coffee.id] = marker;
+    }
     bounds.push([lat, lon]);
     const details = [
       `<strong>${coffee.brand || "Unknown roaster"}</strong>`,
@@ -325,6 +329,25 @@ const setupMapView = () => {
     map.fitBounds(bounds, { padding: [30, 30] });
   }
 
+  const params = new URLSearchParams(window.location.search);
+  const entryId = params.get("entry_id");
+  if (entryId && markersById[entryId]) {
+    const marker = markersById[entryId];
+    const position = marker.getLatLng();
+    map.setView(position, 7, { animate: true });
+    marker.openPopup();
+    const ring = L.circleMarker(position, {
+      radius: 10,
+      weight: 1,
+      color: "rgba(197, 164, 107, 0.6)",
+      fillColor: "rgba(197, 164, 107, 0.15)",
+      fillOpacity: 0.4,
+    }).addTo(map);
+    setTimeout(() => {
+      map.removeLayer(ring);
+    }, 1600);
+  }
+
   const legend = L.control({ position: "bottomright" });
   legend.onAdd = () => {
     const div = document.createElement("div");
@@ -342,83 +365,109 @@ const setupMapView = () => {
   legend.addTo(map);
 };
 
-const setupAltitudeMap = () => {
-  const mapEl = document.getElementById("altitude-map");
-  if (!mapEl || !window.coffeeAltitudeData) return;
-
-  const map = L.map(mapEl).setView([15, 0], 2);
-  L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-    attribution:
-      'Map data: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Tiles: © <a href="https://opentopomap.org">OpenTopoMap</a>',
-  }).addTo(map);
+const setupAltitudeChart = () => {
+  const chartEl = document.getElementById("altitude-chart");
+  if (!chartEl || !window.coffeeAltitudeData || !window.Chart) return;
 
   const ratingColors = {
-    5: "#1d4ed8",
-    4: "#3b82f6",
-    3: "#cbd5e1",
-    2: "#fca5a5",
-    1: "#ef4444",
+    5: "rgba(29, 78, 216, 0.7)",
+    4: "rgba(59, 130, 246, 0.7)",
+    3: "rgba(148, 163, 184, 0.6)",
+    2: "rgba(252, 165, 165, 0.6)",
+    1: "rgba(239, 68, 68, 0.7)",
   };
 
-  const flagForCountry = (country) => {
-    if (!country || !window.countryFlags) return "";
-    const flag = window.countryFlags[country];
-    return flag ? `${flag} ` : "";
+  const jitter = (id) => {
+    const seed = Number(id) % 10;
+    return (seed - 5) * 0.04;
   };
 
-  const bounds = [];
-  window.coffeeAltitudeData.forEach((coffee) => {
-    const lat = coffee.latitude;
-    const lon = coffee.longitude;
-    if (lat === null || lon === null) return;
-    const rating = coffee.rating || 3;
-    const color = ratingColors[rating] || ratingColors[3];
-    const marker = L.circleMarker([lat, lon], {
-      radius: 5,
-      weight: 1,
-      color,
-      fillColor: color,
-      fillOpacity: 0.85,
-    }).addTo(map);
-    bounds.push([lat, lon]);
-    const headline = `<strong>${coffee.brand || "Unknown roaster"}${
-      coffee.varietal ? ` · ${coffee.varietal}` : ""
-    }</strong>`;
-    const location = `${flagForCountry(coffee.country)}${coffee.country || ""}${
-      coffee.location ? ` · ${coffee.location}` : ""
-    }`;
-    const details = [
-      headline,
-      location,
-      coffee.rating ? `Rating: ${coffee.rating} / 5` : "",
-      coffee.altitude_m ? `Altitude: ⛰ ${coffee.altitude_m} m` : "",
-      coffee.id ? `<a class="popup-link" href="/log?entry_id=${coffee.id}">View entry</a>` : "",
-    ]
-      .filter(Boolean)
-      .join("<br>");
-    marker.bindPopup(details);
+  const points = window.coffeeAltitudeData
+    .filter((coffee) => Number.isFinite(coffee.altitude_m))
+    .map((coffee) => {
+      const rating = coffee.rating || 3;
+      return {
+        x: rating + jitter(coffee.id || 0),
+        y: coffee.altitude_m,
+        r: rating,
+        id: coffee.id,
+        brand: coffee.brand,
+        varietal: coffee.varietal,
+        country: coffee.country,
+        location: coffee.location,
+        altitude: coffee.altitude_m,
+      };
+    });
+
+  const chart = new Chart(chartEl, {
+    type: "scatter",
+    data: {
+      datasets: [
+        {
+          data: points,
+          pointRadius: 3,
+          pointHoverRadius: 4,
+          pointBackgroundColor: (ctx) => ratingColors[ctx.raw?.r || 3],
+          pointBorderColor: "rgba(16, 24, 40, 0.15)",
+        },
+      ],
+    },
+    options: {
+      animation: false,
+      scales: {
+        x: {
+          min: 0.5,
+          max: 5.5,
+          ticks: {
+            stepSize: 1,
+            callback: (value) => `${value} / 5`,
+          },
+          title: {
+            display: true,
+            text: "Rating",
+          },
+          grid: {
+            color: "rgba(16, 24, 40, 0.06)",
+          },
+        },
+        y: {
+          title: {
+            display: true,
+            text: "Altitude (m)",
+          },
+          grid: {
+            color: "rgba(16, 24, 40, 0.06)",
+          },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const raw = ctx.raw || {};
+              const location = [raw.country, raw.location].filter(Boolean).join(", ");
+              return [
+                `${raw.brand || "Unknown roaster"}${raw.varietal ? ` · ${raw.varietal}` : ""}`,
+                location,
+                `Altitude: ${raw.altitude} m`,
+                `Rating: ${raw.r} / 5`,
+              ].filter(Boolean);
+            },
+          },
+        },
+      },
+      onClick: (_event, elements) => {
+        if (!elements.length) return;
+        const raw = elements[0].element.$context.raw;
+        if (raw?.id) {
+          window.location.href = `/log?entry_id=${raw.id}`;
+        }
+      },
+    },
   });
 
-  if (bounds.length) {
-    map.fitBounds(bounds, { padding: [30, 30] });
-  }
-
-  const legend = L.control({ position: "bottomright" });
-  legend.onAdd = () => {
-    const div = document.createElement("div");
-    div.className = "map-legend";
-    div.innerHTML = `
-      <div class="map-legend__title">Topo view</div>
-      <div class="map-legend__subtitle">Pins coloured by rating</div>
-      <div class="map-legend__item"><span style="background:${ratingColors[5]}"></span>5</div>
-      <div class="map-legend__item"><span style="background:${ratingColors[4]}"></span>4</div>
-      <div class="map-legend__item"><span style="background:${ratingColors[3]}"></span>3</div>
-      <div class="map-legend__item"><span style="background:${ratingColors[2]}"></span>2</div>
-      <div class="map-legend__item"><span style="background:${ratingColors[1]}"></span>1</div>
-    `;
-    return div;
-  };
-  legend.addTo(map);
+  chartEl.dataset.ready = "true";
 };
 
 const setupOriginMaps = () => {
@@ -561,6 +610,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGrindSettings();
   setupAddMap();
   setupMapView();
-  setupAltitudeMap();
+  setupAltitudeChart();
   setupOriginMaps();
 });
