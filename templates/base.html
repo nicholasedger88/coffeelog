@@ -39,6 +39,13 @@
       {% block content %}{% endblock %}
     </main>
 
+    <div id="loading-modal" class="loading-modal" role="dialog" aria-live="polite" aria-hidden="true">
+      <div class="loading-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="loading-message">Finding location…</p>
+      </div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="{{ url_for('static', filename='app.js') }}"></script>
     <script>

@@ -27,15 +27,6 @@
       </select>
     </label>
     <label>
-      Origin region
-      <select name="origin_region">
-        <option value="">All</option>
-        {% for value in distinct_values.origin_region %}
-          <option value="{{ value }}" {% if request.args.get('origin_region') == value %}selected{% endif %}>{{ value }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>
       Country
       <select name="country">
         <option value="">All</option>

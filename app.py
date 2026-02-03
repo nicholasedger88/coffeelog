@@ -76,7 +76,6 @@ CREATE TABLE IF NOT EXISTS coffees (
     date TEXT NOT NULL,
     brand TEXT,
     varietal TEXT,
-    origin_region TEXT,
     altitude_m INTEGER,
     latitude REAL,
     longitude REAL,
@@ -179,7 +178,6 @@ def validate_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
 
     data["brand"] = form.get("brand", "").strip()
     data["varietal"] = form.get("varietal", "").strip()
-    data["origin_region"] = form.get("origin_region", "").strip()
     data["country"] = form.get("country", "").strip()
     data["location"] = form.get("location", "").strip()
     data["process"] = form.get("process", "").strip()
@@ -192,7 +190,6 @@ def get_distinct_values(field: str) -> list[str]:
     if field not in {
         "brand",
         "varietal",
-        "origin_region",
         "country",
         "location",
         "process",
@@ -221,7 +218,6 @@ def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
     for field in [
         "brand",
         "varietal",
-        "origin_region",
         "country",
         "process",
         "brew_style",
@@ -274,16 +270,15 @@ def add_coffee() -> Any:
             conn.execute(
                 """
                 INSERT INTO coffees (
-                    date, brand, varietal, origin_region, altitude_m, latitude, longitude,
+                    date, brand, varietal, altitude_m, latitude, longitude,
                     location, country, process, flavours, rating, grinder, grind_setting,
                     brew_style, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     data["date"],
                     data["brand"],
                     data["varietal"],
-                    data["origin_region"],
                     data["altitude_m"],
                     data["latitude"],
                     data["longitude"],
@@ -324,7 +319,6 @@ def log() -> Any:
         distinct_values={
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
-            "origin_region": get_distinct_values("origin_region"),
             "country": get_distinct_values("country"),
             "process": get_distinct_values("process"),
             "brew_style": get_distinct_values("brew_style"),
@@ -347,7 +341,6 @@ def map_view() -> Any:
         distinct_values={
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
-            "origin_region": get_distinct_values("origin_region"),
             "country": get_distinct_values("country"),
             "process": get_distinct_values("process"),
             "brew_style": get_distinct_values("brew_style"),
@@ -362,7 +355,6 @@ def suggest() -> Any:
     if field not in {
         "brand",
         "varietal",
-        "origin_region",
         "country",
         "location",
         "process",

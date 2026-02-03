@@ -16,7 +16,7 @@
       <div class="card-header">
         <div>
           <h2>{{ coffee.brand or "Unknown roaster" }}</h2>
-          <p>{{ coffee.varietal or "" }}{% if coffee.varietal and coffee.origin_region %} · {% endif %}{{ coffee.origin_region or "" }}</p>
+          <p>{{ coffee.varietal or "" }}</p>
         </div>
         <span class="rating">{{ coffee.rating }}/5</span>
       </div>

@@ -23,6 +23,10 @@ Visit:
 
 The add form can fetch elevation data from the free Open-Elevation API when you pick a location.
 
+## Development note: schema changes
+
+The `origin_region` field has been removed. If you have an existing `coffeelog.db`, you can delete it and re-seed (`python seed.py`) to recreate the schema for local development.
+
 ## Seed synthetic data
 
 ```bash

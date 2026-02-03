@@ -6,6 +6,24 @@ const debounce = (fn, wait = 250) => {
   };
 };
 
+const showLoading = (message) => {
+  const modal = document.getElementById("loading-modal");
+  const text = document.getElementById("loading-message");
+  if (!modal || !text) return;
+  text.textContent = message;
+  modal.classList.add("active");
+  modal.setAttribute("aria-hidden", "false");
+  document.body.setAttribute("aria-busy", "true");
+};
+
+const hideLoading = () => {
+  const modal = document.getElementById("loading-modal");
+  if (!modal) return;
+  modal.classList.remove("active");
+  modal.setAttribute("aria-hidden", "true");
+  document.body.removeAttribute("aria-busy");
+};
+
 const setupAutocomplete = () => {
   document.querySelectorAll(".autocomplete").forEach((wrapper) => {
     const input = wrapper.querySelector("input");
@@ -145,7 +163,10 @@ const setupAddMap = () => {
           locationInput.dispatchEvent(new Event("input", { bubbles: true }));
         }
         if (geocodeStatus) {
-          geocodeStatus.textContent = "Location found";
+          geocodeStatus.textContent =
+            result.source === "offline"
+              ? "Couldn’t fetch location (approximate used)"
+              : "Location found";
         }
       } else if (geocodeStatus) {
         geocodeStatus.textContent = "Couldn’t fetch location";
@@ -171,8 +192,14 @@ const setupAddMap = () => {
     latInput.value = lat.toFixed(5);
     lonInput.value = lng.toFixed(5);
     setMarker(lat, lng);
-    await fetchReverseGeocode(lat.toFixed(5), lng.toFixed(5));
-    await fetchElevation(lat.toFixed(5), lng.toFixed(5));
+    try {
+      showLoading("Finding location…");
+      await fetchReverseGeocode(lat.toFixed(5), lng.toFixed(5));
+      showLoading("Fetching altitude…");
+      await fetchElevation(lat.toFixed(5), lng.toFixed(5));
+    } finally {
+      hideLoading();
+    }
   });
 
   const syncFromInputs = () => {
@@ -207,26 +234,33 @@ const setupAddMap = () => {
   if (parseButton && linkInput && status) {
     parseButton.addEventListener("click", async () => {
       status.textContent = "Parsing...";
-      const response = await fetch("/api/parse_maps_link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: linkInput.value }),
-      });
-      const result = await response.json();
-      if (result.ok) {
-        status.textContent = "Coordinates updated.";
-        clickToken += 1;
-        userTouchedCountry = false;
-        userTouchedLocation = false;
-        userTouchedAltitude = false;
-        latInput.value = result.lat.toFixed(5);
-        lonInput.value = result.lon.toFixed(5);
-        setMarker(result.lat, result.lon);
-        map.setView([result.lat, result.lon], 7);
-        await fetchReverseGeocode(result.lat.toFixed(5), result.lon.toFixed(5));
-        await fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
-      } else {
-        status.textContent = result.error || "Unable to parse.";
+      showLoading("Parsing link…");
+      try {
+        const response = await fetch("/api/parse_maps_link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: linkInput.value }),
+        });
+        const result = await response.json();
+        if (result.ok) {
+          status.textContent = "Coordinates updated.";
+          clickToken += 1;
+          userTouchedCountry = false;
+          userTouchedLocation = false;
+          userTouchedAltitude = false;
+          latInput.value = result.lat.toFixed(5);
+          lonInput.value = result.lon.toFixed(5);
+          setMarker(result.lat, result.lon);
+          map.setView([result.lat, result.lon], 7);
+          showLoading("Finding location…");
+          await fetchReverseGeocode(result.lat.toFixed(5), result.lon.toFixed(5));
+          showLoading("Fetching altitude…");
+          await fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
+        } else {
+          status.textContent = result.error || "Unable to parse.";
+        }
+      } finally {
+        hideLoading();
       }
     });
   }
@@ -272,7 +306,7 @@ const setupMapView = () => {
     bounds.push([lat, lon]);
     const details = [
       `<strong>${coffee.brand || "Unknown roaster"}</strong>`,
-      `${coffee.varietal || ""} ${coffee.origin_region || ""}`.trim(),
+      `${coffee.varietal || ""}`.trim(),
       `${flagForCountry(coffee.country)}${coffee.country || ""}${
         coffee.location ? ` · ${coffee.location}` : ""
       }`,

@@ -204,6 +204,47 @@ button.secondary,
   overflow: hidden;
 }
 
+.loading-modal {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 24, 40, 0.2);
+  z-index: 100;
+}
+
+.loading-modal.active {
+  display: flex;
+}
+
+.loading-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(47, 106, 246, 0.2);
+  border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .map-legend {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid var(--border);
