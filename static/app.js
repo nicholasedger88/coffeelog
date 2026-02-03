@@ -342,9 +342,9 @@ const setupMapView = () => {
   legend.addTo(map);
 };
 
-const setupMiniMaps = () => {
-  const miniMaps = document.querySelectorAll(".mini-map");
-  if (!miniMaps.length) return;
+const setupOriginMaps = () => {
+  const originMaps = document.querySelectorAll(".origin-map");
+  if (!originMaps.length) return;
 
   const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
   const regions = [
@@ -392,6 +392,14 @@ const setupMiniMaps = () => {
     },
   ];
 
+  const ratingColors = {
+    5: "#1d4ed8",
+    4: "#3b82f6",
+    3: "#cbd5e1",
+    2: "#fca5a5",
+    1: "#ef4444",
+  };
+
   const findRegionBounds = (lat, lon) => {
     return regions.find((region) => {
       const [[minLat, minLon], [maxLat, maxLon]] = region.bounds;
@@ -399,7 +407,7 @@ const setupMiniMaps = () => {
     })?.bounds;
   };
 
-  const initMiniMap = (el) => {
+  const initOriginMap = (el) => {
     if (el.dataset.ready === "true") return;
     const lat = parseFloat(el.dataset.lat);
     const lon = parseFloat(el.dataset.lon);
@@ -421,19 +429,35 @@ const setupMiniMaps = () => {
 
     const bounds = findRegionBounds(lat, lon);
     if (bounds) {
-      map.fitBounds(bounds, { padding: [20, 20] });
+      map.fitBounds(bounds, { padding: [16, 16] });
       map.setZoom(map.getZoom() + 1);
     } else {
       map.setView([lat, lon], 5);
     }
 
+    const rating = parseInt(el.dataset.rating, 10) || 3;
+    const color = ratingColors[rating] || ratingColors[3];
     L.circleMarker([lat, lon], {
       radius: 4,
       weight: 1,
-      color: "#3b82f6",
-      fillColor: "#3b82f6",
+      color,
+      fillColor: color,
       fillOpacity: 0.85,
     }).addTo(map);
+
+    const entryId = el.dataset.id;
+    if (entryId) {
+      const goToMap = () => {
+        window.location.href = `/map?entry_id=${entryId}`;
+      };
+      el.addEventListener("click", goToMap);
+      el.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          goToMap();
+        }
+      });
+    }
 
     el.dataset.ready = "true";
   };
@@ -442,7 +466,7 @@ const setupMiniMaps = () => {
     (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          initMiniMap(entry.target);
+          initOriginMap(entry.target);
           observer.unobserve(entry.target);
         }
       });
@@ -450,7 +474,7 @@ const setupMiniMaps = () => {
     { rootMargin: "100px" }
   );
 
-  miniMaps.forEach((el) => observer.observe(el));
+  originMaps.forEach((el) => observer.observe(el));
 };
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -458,5 +482,5 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGrindSettings();
   setupAddMap();
   setupMapView();
-  setupMiniMaps();
+  setupOriginMaps();
 });

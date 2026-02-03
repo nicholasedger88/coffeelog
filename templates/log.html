@@ -13,7 +13,7 @@
 <section class="cards">
   {% for coffee in coffees %}
     {% set is_target = entry_id and coffee.id|string == entry_id %}
-    <article class="card coffee-card{% if is_target %} highlight{% endif %}" id="entry-{{ coffee.id }}">
+    <article class="card coffee-card{% if is_target %} highlight{% endif %}{% if coffee.latitude and coffee.longitude %} has-map{% endif %}" id="entry-{{ coffee.id }}">
       <div class="card-header">
         <div>
           <h2>{{ coffee.brand or "Unknown roaster" }}</h2>
@@ -21,89 +21,96 @@
         <span class="rating">{{ coffee.rating }}/5</span>
       </div>
       <div class="card-body">
-        <div class="chip-row">
-          {% if coffee.country %}
-            <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, country=coffee.country, entry_id='') }}">Country: {{ coffee.country|flag_country }}</a>
-          {% endif %}
-          {% if coffee.varietal %}
-            <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, varietal=coffee.varietal, entry_id='') }}">Varietal: {{ coffee.varietal }}</a>
-          {% endif %}
-          {% if coffee.brand %}
-            <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">Brand: {{ coffee.brand }}</a>
-          {% endif %}
-          {% if coffee.process %}
-            <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, process=coffee.process, entry_id='') }}">Process: {{ coffee.process }}</a>
-          {% endif %}
-          {% if coffee.brew_style %}
-            <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, brew_style=coffee.brew_style, entry_id='') }}">Brew: {{ coffee.brew_style }}</a>
+        <div class="card-content">
+          <div class="card-details">
+            <div class="chip-row">
+              {% if coffee.country %}
+                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, country=coffee.country, entry_id='') }}">Country: {{ coffee.country|flag_country }}</a>
+              {% endif %}
+              {% if coffee.varietal %}
+                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, varietal=coffee.varietal, entry_id='') }}">Varietal: {{ coffee.varietal }}</a>
+              {% endif %}
+              {% if coffee.brand %}
+                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">Brand: {{ coffee.brand }}</a>
+              {% endif %}
+              {% if coffee.process %}
+                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, process=coffee.process, entry_id='') }}">Process: {{ coffee.process }}</a>
+              {% endif %}
+              {% if coffee.brew_style %}
+                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, brew_style=coffee.brew_style, entry_id='') }}">Brew: {{ coffee.brew_style }}</a>
+              {% endif %}
+            </div>
+
+            <div class="detail-grid">
+              <div class="detail-row">
+                <span class="detail-label">Location</span>
+                <span class="detail-value">
+                  {% if coffee.country %}{{ coffee.country|flag_country }}{% endif %}
+                  {% if coffee.location %}{% if coffee.country %}, {% endif %}{{ coffee.location }}{% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Varietal</span>
+                <span class="detail-value">{{ coffee.varietal or "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Process</span>
+                <span class="detail-value">{{ coffee.process or "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Flavours</span>
+                <span class="detail-value">{{ coffee.flavours or "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Brew method</span>
+                <span class="detail-value">{{ coffee.brew_style or "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Grinder</span>
+                <span class="detail-value">
+                  {% if coffee.grinder %}
+                    {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting }}{% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Rating</span>
+                <span class="detail-value">
+                  Rating: {{ coffee.rating }} / 5
+                  <span class="rating-bar">
+                    <span class="rating-fill" style="width: {{ (coffee.rating / 5 * 100) | round(0) }}%"></span>
+                  </span>
+                </span>
+              </div>
+              {% if coffee.altitude_m %}
+                {% set position = coffee.altitude_m / 2500 * 100 %}
+                <div class="detail-row detail-altitude">
+                  <span class="detail-label">Altitude</span>
+                  <span class="detail-value">
+                    <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
+                    <span class="meter">
+                      <span class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></span>
+                    </span>
+                  </span>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          {% if coffee.latitude and coffee.longitude %}
+            <div
+              class="origin-map"
+              role="button"
+              tabindex="0"
+              aria-label="View coffee on map"
+              data-lat="{{ coffee.latitude|format_latlon }}"
+              data-lon="{{ coffee.longitude|format_latlon }}"
+              data-id="{{ coffee.id }}"
+              data-rating="{{ coffee.rating }}"
+            ></div>
           {% endif %}
         </div>
-
-        <div class="detail-grid">
-          <div class="detail-row">
-            <span class="detail-label">Location</span>
-            <span class="detail-value">
-              {% if coffee.country %}{{ coffee.country|flag_country }}{% endif %}
-              {% if coffee.location %}{% if coffee.country %}, {% endif %}{{ coffee.location }}{% endif %}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Varietal</span>
-            <span class="detail-value">{{ coffee.varietal or "—" }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Process</span>
-            <span class="detail-value">{{ coffee.process or "—" }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Flavours</span>
-            <span class="detail-value">{{ coffee.flavours or "—" }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Brew method</span>
-            <span class="detail-value">{{ coffee.brew_style or "—" }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Grinder</span>
-            <span class="detail-value">
-              {% if coffee.grinder %}
-                {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting }}{% endif %}
-              {% else %}
-                —
-              {% endif %}
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-label">Rating</span>
-            <span class="detail-value">
-              Rating: {{ coffee.rating }} / 5
-              <span class="rating-bar">
-                <span class="rating-fill" style="width: {{ (coffee.rating / 5 * 100) | round(0) }}%"></span>
-              </span>
-            </span>
-          </div>
-        {% if coffee.altitude_m %}
-          {% set position = coffee.altitude_m / 2500 * 100 %}
-          <div class="detail-row detail-altitude">
-            <span class="detail-label">Altitude</span>
-            <span class="detail-value">
-              <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
-              <span class="meter">
-                <span class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></span>
-              </span>
-            </span>
-          </div>
-        {% endif %}
-
-        {% if coffee.latitude and coffee.longitude %}
-          <div
-            class="mini-map"
-            data-lat="{{ coffee.latitude|format_latlon }}"
-            data-lon="{{ coffee.longitude|format_latlon }}"
-            data-id="{{ coffee.id }}"
-          ></div>
-        {% endif %}
-      </div>
       </div>
       <div class="card-footer">
         <span>{{ coffee.date }}</span>

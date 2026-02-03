@@ -447,21 +447,35 @@ button.secondary,
   vertical-align: middle;
 }
 
-.mini-map {
-  height: 140px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-  margin-top: 10px;
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.mini-map .leaflet-control-attribution {
-  font-size: 9px;
+.coffee-card.has-map .card-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px;
+  gap: 16px;
+  align-items: start;
+}
+
+.origin-map {
+  width: 120px;
+  height: 120px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.origin-map .leaflet-control-attribution {
+  font-size: 8px;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.7);
 }
 
-.mini-map .leaflet-control-attribution a {
+.origin-map .leaflet-control-attribution a {
   color: var(--muted);
 }
 
