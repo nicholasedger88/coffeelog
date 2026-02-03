@@ -206,12 +206,16 @@ button.secondary,
 
 .loading-modal {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
   display: none;
   align-items: center;
   justify-content: center;
   background: rgba(16, 24, 40, 0.2);
-  z-index: 100;
+  z-index: 10000;
+  pointer-events: auto;
 }
 
 .loading-modal.active {
