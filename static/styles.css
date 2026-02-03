@@ -79,11 +79,10 @@ nav a:focus {
 }
 
 .card {
-  background: var(--card);
+  background: #fff;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 24px;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.04);
 }
 
 .form-card {
@@ -192,6 +191,14 @@ button.secondary,
   border: 1px solid var(--border);
 }
 
+.map--compact {
+  height: 280px;
+}
+
+.map--tall {
+  height: 70vh;
+}
+
 .map-card {
   padding: 0;
   overflow: hidden;
@@ -225,9 +232,9 @@ button.secondary,
 }
 
 .cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   margin-top: 24px;
 }
 
@@ -267,7 +274,7 @@ button.secondary,
 .details {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   font-size: 12px;
   color: var(--muted);
 }

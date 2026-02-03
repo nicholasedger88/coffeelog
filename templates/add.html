@@ -54,9 +54,10 @@
         <input type="text" name="process" autocomplete="off" placeholder="washed" />
         <div class="suggestions"></div>
       </label>
-      <label>
+      <label class="autocomplete" data-field="flavours">
         Flavours
-        <input type="text" name="flavours" placeholder="strawberry, jasmine" />
+        <input type="text" name="flavours" placeholder="strawberry, jasmine" autocomplete="off" />
+        <div class="suggestions"></div>
       </label>
       <label>
         Grinder
@@ -84,7 +85,7 @@
       </label>
       <label>
         Altitude (m)
-        <input type="number" name="altitude_m" min="1" max="9000" />
+        <input type="number" name="altitude_m" min="1" max="9000" id="altitude" />
       </label>
       <label>
         Latitude
@@ -103,7 +104,7 @@
           <p>Click to drop a marker and capture coordinates.</p>
         </div>
       </div>
-      <div id="add-map" class="map"></div>
+      <div id="add-map" class="map map--compact"></div>
       <div class="maps-link">
         <label>
           Google Maps link

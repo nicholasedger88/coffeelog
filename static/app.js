@@ -92,6 +92,19 @@ const setupAddMap = () => {
   const marker = L.marker([10, 0], { draggable: false }).addTo(map);
   const latInput = document.getElementById("latitude");
   const lonInput = document.getElementById("longitude");
+  const altitudeInput = document.getElementById("altitude");
+
+  const fetchElevation = async (lat, lon) => {
+    try {
+      const response = await fetch(`/api/elevation?lat=${lat}&lon=${lon}`);
+      const result = await response.json();
+      if (result.ok && altitudeInput) {
+        altitudeInput.value = result.altitude_m;
+      }
+    } catch (error) {
+      // Ignore elevation failures silently.
+    }
+  };
 
   const setMarker = (lat, lon) => {
     marker.setLatLng([lat, lon]);
@@ -102,6 +115,7 @@ const setupAddMap = () => {
     latInput.value = lat.toFixed(5);
     lonInput.value = lng.toFixed(5);
     setMarker(lat, lng);
+    fetchElevation(lat.toFixed(5), lng.toFixed(5));
   });
 
   const syncFromInputs = () => {
@@ -133,6 +147,7 @@ const setupAddMap = () => {
         lonInput.value = result.lon.toFixed(5);
         setMarker(result.lat, result.lon);
         map.setView([result.lat, result.lon], 7);
+        fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
       } else {
         status.textContent = result.error || "Unable to parse.";
       }
@@ -175,7 +190,9 @@ const setupMapView = () => {
   }
 };
 
-setupAutocomplete();
-setupGrindSettings();
-setupAddMap();
-setupMapView();
+document.addEventListener("DOMContentLoaded", () => {
+  setupAutocomplete();
+  setupGrindSettings();
+  setupAddMap();
+  setupMapView();
+});

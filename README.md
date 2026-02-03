@@ -21,10 +21,12 @@ Visit:
 - `http://localhost:5000/log` to browse your log
 - `http://localhost:5000/map` to explore on a map
 
+The add form can fetch elevation data from the free Open-Elevation API when you pick a location.
+
 ## Seed synthetic data
 
 ```bash
 python seed.py
 ```
 
-Or use the **Seed synthetic data** button on the log page (MVP demo only).
+Or use the **Seed demo data** button on the log page (MVP demo only).

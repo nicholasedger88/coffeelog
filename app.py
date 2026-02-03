@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import requests
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -17,6 +18,7 @@ AERGRIND_SETTINGS = ["Aergrind Fine", "Aergrind Medium"]
 BELINDA_SETTINGS = [str(i) for i in range(1, 13)]
 ALLOWED_BREW_STYLES = ["Aeropress", "Moka pot", "V60"]
 ALLOWED_PROCESSES = ["washed", "natural", "anaerobic", "honey", "experimental"]
+ELEVATION_API = "https://api.open-elevation.com/api/v1/lookup"
 
 app = Flask(__name__)
 app.secret_key = "coffee-log-mvp"
@@ -355,6 +357,40 @@ def parse_maps_link() -> Any:
                 return jsonify({"ok": True, "lat": lat, "lon": lon})
             return jsonify({"ok": False, "error": "Coordinates out of range."})
     return jsonify({"ok": False, "error": "Unable to parse coordinates from the link."})
+
+
+@app.route("/api/elevation")
+def elevation() -> Any:
+    lat = request.args.get("lat")
+    lon = request.args.get("lon")
+    if not lat or not lon:
+        return jsonify({"ok": False, "error": "Missing coordinates."})
+    try:
+        lat_value = float(lat)
+        lon_value = float(lon)
+    except ValueError:
+        return jsonify({"ok": False, "error": "Invalid coordinates."})
+
+    if not (-90 <= lat_value <= 90 and -180 <= lon_value <= 180):
+        return jsonify({"ok": False, "error": "Coordinates out of range."})
+
+    try:
+        response = requests.get(
+            ELEVATION_API,
+            params={"locations": f"{lat_value},{lon_value}"},
+            timeout=6,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        results = payload.get("results", [])
+        if not results:
+            return jsonify({"ok": False, "error": "Elevation unavailable."})
+        elevation_value = results[0].get("elevation")
+        if elevation_value is None:
+            return jsonify({"ok": False, "error": "Elevation unavailable."})
+        return jsonify({"ok": True, "altitude_m": round(float(elevation_value))})
+    except (requests.RequestException, ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Elevation lookup failed."})
 
 
 @app.route("/seed", methods=["POST"])

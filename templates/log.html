@@ -29,15 +29,17 @@
           <p class="flavours">{{ coffee.flavours }}</p>
         {% endif %}
         <div class="details">
-          {% if coffee.process %}<span>{{ coffee.process }}</span>{% endif %}
           {% if coffee.brew_style %}<span>{{ coffee.brew_style }}</span>{% endif %}
+          <span>Rating {{ coffee.rating }}/5</span>
+          {% if coffee.process %}<span>{{ coffee.process }}</span>{% endif %}
           {% if coffee.grinder %}<span>{{ coffee.grinder }}{% if coffee.grind_setting %} — {{ coffee.grind_setting }}{% endif %}</span>{% endif %}
         </div>
         {% if coffee.altitude_m %}
+          {% set position = coffee.altitude_m / 2500 * 100 %}
           <div class="altitude">
             <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
             <div class="meter">
-              <div class="dot" style="left: {{ (coffee.altitude_m / 2500 * 100) | round(2) }}%"></div>
+              <div class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></div>
             </div>
           </div>
         {% endif %}
@@ -52,7 +54,7 @@
 </section>
 
 <form method="post" action="{{ url_for('seed_route') }}" class="seed">
-  <button type="submit" class="secondary">Seed synthetic data</button>
+  <button type="submit" class="secondary">Seed demo data</button>
   <p>For demo only — this will add ~60 sample coffees.</p>
 </form>
 {% endblock %}
