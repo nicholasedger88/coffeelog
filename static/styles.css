@@ -18,6 +18,7 @@ body {
   font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
+  font-size: 15px;
 }
 
 .top-nav {
@@ -25,13 +26,13 @@ body {
   background: #fff;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 5000;
 }
 
 .nav-inner {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 18px 24px;
+  padding: 12px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -58,7 +59,7 @@ nav a:focus {
 .page {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 32px 24px 64px;
+  padding: 24px 24px 48px;
 }
 
 .page-header {
@@ -70,7 +71,7 @@ nav a:focus {
 
 .page-header h1 {
   margin: 0 0 6px;
-  font-size: 32px;
+  font-size: 28px;
 }
 
 .page-header p {
@@ -82,11 +83,11 @@ nav a:focus {
   background: #fff;
   border: 1px solid var(--border);
   border-radius: 14px;
-  padding: 24px;
+  padding: 18px;
 }
 
 .form-card {
-  padding: 24px 28px;
+  padding: 20px 22px;
 }
 
 .form-section {
@@ -135,10 +136,10 @@ label {
 
 input,
 select {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid var(--border);
-  font-size: 14px;
+  font-size: 13px;
   background: #fff;
   color: var(--text);
 }
@@ -157,7 +158,7 @@ select:focus {
 button,
 .secondary {
   border-radius: 999px;
-  padding: 10px 18px;
+  padding: 8px 14px;
   border: none;
   font-weight: 600;
   cursor: pointer;
@@ -166,6 +167,7 @@ button,
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  font-size: 13px;
 }
 
 button.primary,
@@ -212,6 +214,10 @@ button.secondary,
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid var(--border);
+}
+
+.leaflet-container {
+  z-index: 1;
 }
 
 .map--compact {
@@ -276,10 +282,10 @@ button.secondary,
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 12px;
+  padding: 8px 10px;
+  font-size: 11px;
   color: var(--muted);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.06);
 }
 
 .map-legend__title {
@@ -296,15 +302,15 @@ button.secondary,
 }
 
 .map-legend__item span {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   display: inline-block;
 }
 
 .popup-link {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 11px;
   text-decoration: none;
 }
 
@@ -338,13 +344,13 @@ button.secondary,
 .cards {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 24px;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .coffee-card h2 {
   margin: 0 0 6px;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .card-header {
@@ -359,8 +365,8 @@ button.secondary,
   color: var(--accent);
   font-weight: 600;
   border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 13px;
+  padding: 4px 8px;
+  font-size: 12px;
 }
 
 .card-body {
@@ -413,6 +419,25 @@ button.secondary,
 
 .detail-value {
   color: var(--text);
+}
+
+.rating-bar {
+  display: inline-block;
+  width: 90px;
+  height: 6px;
+  background: #eef2f7;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: middle;
+  position: relative;
+  overflow: hidden;
+}
+
+.rating-fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.6;
 }
 
 .detail-altitude .meter {
@@ -496,27 +521,11 @@ button.secondary,
 }
 
 .filters {
-  margin-top: 24px;
-  padding: 18px;
+  margin-top: 20px;
+  padding: 14px;
   border-radius: 16px;
   border: 1px solid var(--border);
   background: #fff;
-}
-
-.filters-sticky {
-  position: sticky;
-  top: 72px;
-  z-index: 50;
-}
-
-.filters-sticky::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 16px;
-  pointer-events: none;
-  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
-  opacity: 0.5;
 }
 
 .filter-grid {

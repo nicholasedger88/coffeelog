@@ -297,7 +297,7 @@ const setupMapView = () => {
     const rating = coffee.rating || 3;
     const color = ratingColors[rating] || ratingColors[3];
     const marker = L.circleMarker([lat, lon], {
-      radius: 6,
+      radius: 5,
       weight: 1,
       color,
       fillColor: color,

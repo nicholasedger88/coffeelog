@@ -76,9 +76,10 @@
           <div class="detail-row">
             <span class="detail-label">Rating</span>
             <span class="detail-value">
-              {% set stars = "★★★★★" %}
-              {% set filled = coffee.rating %}
-              {{ stars[:filled] }}{{ "☆" * (5 - filled) }} ({{ coffee.rating }}/5)
+              Rating: {{ coffee.rating }} / 5
+              <span class="rating-bar">
+                <span class="rating-fill" style="width: {{ (coffee.rating / 5 * 100) | round(0) }}%"></span>
+              </span>
             </span>
           </div>
           {% if coffee.altitude_m %}
