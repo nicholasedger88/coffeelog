@@ -382,29 +382,6 @@ button.secondary,
   gap: 12px;
 }
 
-.chip-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chip-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  color: var(--muted);
-  text-decoration: none;
-}
-
-.chip-link:hover {
-  color: var(--text);
-  border-color: var(--accent);
-}
-
 .detail-grid {
   display: flex;
   flex-direction: column;
@@ -425,6 +402,17 @@ button.secondary,
 
 .detail-value {
   color: var(--text);
+}
+
+.value-link {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.value-link:hover,
+.value-link:focus {
+  border-bottom-color: var(--text);
 }
 
 .rating-bar {

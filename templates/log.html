@@ -23,39 +23,46 @@
       <div class="card-body">
         <div class="card-content">
           <div class="card-details">
-            <div class="chip-row">
-              {% if coffee.country %}
-                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, country=coffee.country, entry_id='') }}">Country: {{ coffee.country|flag_country }}</a>
-              {% endif %}
-              {% if coffee.varietal %}
-                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, varietal=coffee.varietal, entry_id='') }}">Varietal: {{ coffee.varietal }}</a>
-              {% endif %}
-              {% if coffee.brand %}
-                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">Brand: {{ coffee.brand }}</a>
-              {% endif %}
-              {% if coffee.process %}
-                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, process=coffee.process, entry_id='') }}">Process: {{ coffee.process }}</a>
-              {% endif %}
-              {% if coffee.brew_style %}
-                <a class="chip-link" href="{{ url_for('log') }}?{{ build_query(request.args, brew_style=coffee.brew_style, entry_id='') }}">Brew: {{ coffee.brew_style }}</a>
-              {% endif %}
-            </div>
-
             <div class="detail-grid">
               <div class="detail-row">
                 <span class="detail-label">Location</span>
                 <span class="detail-value">
-                  {% if coffee.country %}{{ coffee.country|flag_country }}{% endif %}
-                  {% if coffee.location %}{% if coffee.country %}, {% endif %}{{ coffee.location }}{% endif %}
+                  {% if coffee.country %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, country=coffee.country, entry_id='') }}">
+                      {{ coffee.country|flag_country }}
+                    </a>
+                  {% endif %}
+                  {% if coffee.location %}
+                    {% if coffee.country %}, {% endif %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, location=coffee.location, entry_id='') }}">
+                      {{ coffee.location }}
+                    </a>
+                  {% endif %}
                 </span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Varietal</span>
-                <span class="detail-value">{{ coffee.varietal or "—" }}</span>
+                <span class="detail-value">
+                  {% if coffee.varietal %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, varietal=coffee.varietal, entry_id='') }}">
+                      {{ coffee.varietal }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Process</span>
-                <span class="detail-value">{{ coffee.process or "—" }}</span>
+                <span class="detail-value">
+                  {% if coffee.process %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, process=coffee.process, entry_id='') }}">
+                      {{ coffee.process }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Flavours</span>
@@ -63,13 +70,33 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Brew method</span>
-                <span class="detail-value">{{ coffee.brew_style or "—" }}</span>
+                <span class="detail-value">
+                  {% if coffee.brew_style %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, brew_style=coffee.brew_style, entry_id='') }}">
+                      {{ coffee.brew_style }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
               </div>
               <div class="detail-row">
                 <span class="detail-label">Grinder</span>
                 <span class="detail-value">
                   {% if coffee.grinder %}
                     {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting }}{% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Brand</span>
+                <span class="detail-value">
+                  {% if coffee.brand %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">
+                      {{ coffee.brand }}
+                    </a>
                   {% else %}
                     —
                   {% endif %}
