@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Coffee Log</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  </head>
+  <body>
+    <header class="top-nav">
+      <div class="nav-inner">
+        <a class="brand" href="{{ url_for('add_coffee') }}">Coffee Log</a>
+        <nav>
+          <a href="{{ url_for('add_coffee') }}">Add</a>
+          <a href="{{ url_for('log') }}">Log</a>
+          <a href="{{ url_for('map_view') }}">Map</a>
+          <a href="{{ url_for('altitude_view') }}">Altitude</a>
+        </nav>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-wrap">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <main class="page">
+      {% block content %}{% endblock %}
+    </main>
+
+    <div id="loading-modal" class="loading-modal" role="dialog" aria-live="polite" aria-hidden="true">
+      <div class="loading-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <p id="loading-message">Finding location…</p>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+    <script>
+      window.countryFlags = {{ country_flags|tojson }};
+    </script>
+    {% block scripts %}{% endblock %}
+  </body>
+</html>
