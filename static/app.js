@@ -314,6 +314,7 @@ const setupMapView = () => {
       coffee.rating ? `Rating: ${coffee.rating}/5` : "",
       coffee.flavours ? `Flavours: ${coffee.flavours}` : "",
       coffee.altitude_m ? `Altitude: ${coffee.altitude_m} m` : "",
+      coffee.id ? `<a class="popup-link" href="/log?entry_id=${coffee.id}">View entry</a>` : "",
     ]
       .filter(Boolean)
       .join("<br>");

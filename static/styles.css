@@ -89,6 +89,29 @@ nav a:focus {
   padding: 24px 28px;
 }
 
+.form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.section-header h3,
+.section-header h4 {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.section-header p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.divider {
+  height: 1px;
+  background: var(--border);
+}
 .coffee-form {
   display: flex;
   flex-direction: column;
@@ -279,6 +302,12 @@ button.secondary,
   display: inline-block;
 }
 
+.popup-link {
+  color: var(--accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+
 .map-panel {
   display: flex;
   flex-direction: column;
@@ -339,6 +368,73 @@ button.secondary,
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.chip-link:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  align-items: baseline;
+}
+
+.detail-label {
+  min-width: 110px;
+  color: var(--muted);
+}
+
+.detail-value {
+  color: var(--text);
+}
+
+.detail-altitude .meter {
+  display: inline-block;
+  width: 120px;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.highlight {
+  border-color: var(--accent);
+  background: #f5f8ff;
+}
+
+.entry-clear {
+  margin-top: 16px;
+}
+
+.entry-clear a {
+  font-size: 13px;
+  color: var(--accent);
+  text-decoration: none;
 }
 
 .meta {
@@ -405,6 +501,22 @@ button.secondary,
   border-radius: 16px;
   border: 1px solid var(--border);
   background: #fff;
+}
+
+.filters-sticky {
+  position: sticky;
+  top: 72px;
+  z-index: 50;
+}
+
+.filters-sticky::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.05);
+  opacity: 0.5;
 }
 
 .filter-grid {

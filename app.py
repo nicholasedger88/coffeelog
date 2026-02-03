@@ -6,6 +6,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import pycountry
 import requests
@@ -68,6 +69,23 @@ def flag_country(country: str) -> str:
     if not flag:
         return country
     return f"{flag} {country}"
+
+
+@app.template_filter("format_latlon")
+def format_latlon(value: float | None) -> str:
+    if value is None:
+        return ""
+    return f"{value:.5f}"
+
+
+def build_query(args: dict[str, str], **updates: str) -> str:
+    data = dict(args)
+    for key, value in updates.items():
+        if value:
+            data[key] = value
+        else:
+            data.pop(key, None)
+    return urlencode(data)
 
 
 SCHEMA_SQL = """
@@ -312,11 +330,14 @@ def add_coffee() -> Any:
 @app.route("/log")
 def log() -> Any:
     init_db()
+    entry_id = request.args.get("entry_id")
     filters = build_filters_from_request(request.args)
     coffees = fetch_coffees(filters)
     return render_template(
         "log.html",
         coffees=coffees,
+        entry_id=entry_id,
+        build_query=build_query,
         distinct_values={
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
@@ -339,6 +360,7 @@ def map_view() -> Any:
     return render_template(
         "map.html",
         coffees=json.dumps(coffees),
+        build_query=build_query,
         distinct_values={
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
