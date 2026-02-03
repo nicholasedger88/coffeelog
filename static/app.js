@@ -342,9 +342,121 @@ const setupMapView = () => {
   legend.addTo(map);
 };
 
+const setupMiniMaps = () => {
+  const miniMaps = document.querySelectorAll(".mini-map");
+  if (!miniMaps.length) return;
+
+  const tileUrl = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+  const regions = [
+    {
+      name: "South America",
+      bounds: [
+        [-56, -82],
+        [13, -34],
+      ],
+    },
+    {
+      name: "North America",
+      bounds: [
+        [7, -170],
+        [72, -50],
+      ],
+    },
+    {
+      name: "Europe",
+      bounds: [
+        [35, -25],
+        [71, 40],
+      ],
+    },
+    {
+      name: "Africa",
+      bounds: [
+        [-35, -20],
+        [37, 52],
+      ],
+    },
+    {
+      name: "Asia",
+      bounds: [
+        [5, 40],
+        [77, 150],
+      ],
+    },
+    {
+      name: "Oceania",
+      bounds: [
+        [-50, 110],
+        [10, 180],
+      ],
+    },
+  ];
+
+  const findRegionBounds = (lat, lon) => {
+    return regions.find((region) => {
+      const [[minLat, minLon], [maxLat, maxLon]] = region.bounds;
+      return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
+    })?.bounds;
+  };
+
+  const initMiniMap = (el) => {
+    if (el.dataset.ready === "true") return;
+    const lat = parseFloat(el.dataset.lat);
+    const lon = parseFloat(el.dataset.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
+
+    const map = L.map(el, {
+      zoomControl: false,
+      attributionControl: true,
+      scrollWheelZoom: false,
+      dragging: false,
+      doubleClickZoom: false,
+      boxZoom: false,
+      keyboard: false,
+      tap: false,
+    });
+    L.tileLayer(tileUrl, {
+      attribution: "© OpenStreetMap",
+    }).addTo(map);
+
+    const bounds = findRegionBounds(lat, lon);
+    if (bounds) {
+      map.fitBounds(bounds, { padding: [20, 20] });
+      map.setZoom(map.getZoom() + 1);
+    } else {
+      map.setView([lat, lon], 5);
+    }
+
+    L.circleMarker([lat, lon], {
+      radius: 4,
+      weight: 1,
+      color: "#3b82f6",
+      fillColor: "#3b82f6",
+      fillOpacity: 0.85,
+    }).addTo(map);
+
+    el.dataset.ready = "true";
+  };
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          initMiniMap(entry.target);
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { rootMargin: "100px" }
+  );
+
+  miniMaps.forEach((el) => observer.observe(el));
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   setupAutocomplete();
   setupGrindSettings();
   setupAddMap();
   setupMapView();
+  setupMiniMaps();
 });

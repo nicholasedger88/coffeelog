@@ -82,19 +82,28 @@
               </span>
             </span>
           </div>
-          {% if coffee.altitude_m %}
-            {% set position = coffee.altitude_m / 2500 * 100 %}
-            <div class="detail-row detail-altitude">
-              <span class="detail-label">Altitude</span>
-              <span class="detail-value">
-                <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
-                <span class="meter">
-                  <span class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></span>
-                </span>
+        {% if coffee.altitude_m %}
+          {% set position = coffee.altitude_m / 2500 * 100 %}
+          <div class="detail-row detail-altitude">
+            <span class="detail-label">Altitude</span>
+            <span class="detail-value">
+              <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
+              <span class="meter">
+                <span class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></span>
               </span>
-            </div>
-          {% endif %}
-        </div>
+            </span>
+          </div>
+        {% endif %}
+
+        {% if coffee.latitude and coffee.longitude %}
+          <div
+            class="mini-map"
+            data-lat="{{ coffee.latitude|format_latlon }}"
+            data-lon="{{ coffee.longitude|format_latlon }}"
+            data-id="{{ coffee.id }}"
+          ></div>
+        {% endif %}
+      </div>
       </div>
       <div class="card-footer">
         <span>{{ coffee.date }}</span>

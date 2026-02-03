@@ -447,6 +447,24 @@ button.secondary,
   vertical-align: middle;
 }
 
+.mini-map {
+  height: 140px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.mini-map .leaflet-control-attribution {
+  font-size: 9px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.mini-map .leaflet-control-attribution a {
+  color: var(--muted);
+}
+
 .highlight {
   border-color: var(--accent);
   background: #f5f8ff;
