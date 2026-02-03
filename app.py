@@ -173,8 +173,8 @@ def validate_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         errors.append("Latitude must be between -90 and 90.")
     if longitude is not None and (longitude < -180 or longitude > 180):
         errors.append("Longitude must be between -180 and 180.")
-    data["latitude"] = latitude
-    data["longitude"] = longitude
+    data["latitude"] = round(latitude, 5) if latitude is not None else None
+    data["longitude"] = round(longitude, 5) if longitude is not None else None
 
     data["brand"] = form.get("brand", "").strip()
     data["varietal"] = form.get("varietal", "").strip()
@@ -305,6 +305,7 @@ def add_coffee() -> Any:
         belinda_settings=BELINDA_SETTINGS,
         brew_styles=ALLOWED_BREW_STYLES,
         processes=ALLOWED_PROCESSES,
+        today_date=datetime.now().date().isoformat(),
     )
 
 
