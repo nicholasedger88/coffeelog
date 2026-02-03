@@ -442,6 +442,7 @@ def reverse_geocode() -> Any:
     data = request.get_json(silent=True) or {}
     lat = data.get("lat")
     lon = data.get("lon")
+    app.logger.info("Reverse geocode request: lat=%s lon=%s", lat, lon)
     if lat is None or lon is None:
         return jsonify({"ok": False, "error": "Missing coordinates."})
     try:
@@ -464,7 +465,7 @@ def reverse_geocode() -> Any:
                 "addressdetails": 1,
             },
             headers={"User-Agent": "CoffeeLog/1.0 (coffeelog@example.com)"},
-            timeout=6,
+            timeout=5,
         )
         response.raise_for_status()
         payload = response.json()
@@ -474,14 +475,18 @@ def reverse_geocode() -> Any:
             address.get("city")
             or address.get("town")
             or address.get("village")
+            or address.get("hamlet")
             or address.get("county")
             or address.get("state")
             or address.get("region")
         )
         if not country and not location:
+            app.logger.warning("Reverse geocode failed: no location for lat=%s lon=%s", lat, lon)
             return jsonify({"ok": False, "error": "No location found."})
-        return jsonify({"ok": True, "country": country, "location": location})
+        app.logger.info("Reverse geocode success: country=%s location=%s", country, location)
+        return jsonify({"ok": True, "country": country, "location": location or ""})
     except (requests.RequestException, ValueError, TypeError):
+        app.logger.exception("Reverse geocode error for lat=%s lon=%s", lat, lon)
         return jsonify({"ok": False, "error": "Reverse geocoding failed."})
 
 

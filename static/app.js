@@ -81,7 +81,7 @@ const setupGrindSettings = () => {
 };
 
 const setupAddMap = () => {
-  const mapEl = document.getElementById("add-map");
+  const mapEl = document.getElementById("map");
   if (!mapEl) return;
 
   const map = L.map(mapEl).setView([10, 0], 2);
@@ -96,21 +96,23 @@ const setupAddMap = () => {
   const countryInput = document.getElementById("country");
   const locationInput = document.getElementById("location");
 
-  let manualCountry = false;
-  let manualLocation = false;
-  let manualAltitude = false;
+  let userTouchedCountry = false;
+  let userTouchedLocation = false;
+  let userTouchedAltitude = false;
   let clickToken = 0;
+  const geocodeStatus = document.getElementById("geocode-status");
 
   const fetchElevation = async (lat, lon) => {
     const token = clickToken;
     try {
       const response = await fetch(`/api/elevation?lat=${lat}&lon=${lon}`);
       const result = await response.json();
-      if (token !== clickToken || manualAltitude) {
+      if (token !== clickToken || userTouchedAltitude) {
         return;
       }
       if (result.ok && altitudeInput) {
         altitudeInput.value = result.altitude_m;
+        altitudeInput.dispatchEvent(new Event("input", { bubbles: true }));
       }
     } catch (error) {
       // Ignore elevation failures silently.
@@ -120,25 +122,39 @@ const setupAddMap = () => {
   const fetchReverseGeocode = async (lat, lon) => {
     const token = clickToken;
     try {
+      if (geocodeStatus) {
+        geocodeStatus.textContent = "Finding location…";
+      }
       const response = await fetch("/api/reverse_geocode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lat, lon }),
       });
       const result = await response.json();
+      console.log("reverse geocode:", result);
       if (token !== clickToken) {
         return;
       }
       if (result.ok) {
-        if (countryInput && !manualCountry && result.country) {
+        if (countryInput && !userTouchedCountry && result.country) {
           countryInput.value = result.country;
+          countryInput.dispatchEvent(new Event("input", { bubbles: true }));
         }
-        if (locationInput && !manualLocation && result.location) {
+        if (locationInput && !userTouchedLocation && result.location) {
           locationInput.value = result.location;
+          locationInput.dispatchEvent(new Event("input", { bubbles: true }));
         }
+        if (geocodeStatus) {
+          geocodeStatus.textContent = "Location found";
+        }
+      } else if (geocodeStatus) {
+        geocodeStatus.textContent = "Couldn’t fetch location";
       }
     } catch (error) {
       // Ignore reverse geocode failures silently.
+      if (geocodeStatus) {
+        geocodeStatus.textContent = "Couldn’t fetch location";
+      }
     }
   };
 
@@ -146,17 +162,17 @@ const setupAddMap = () => {
     marker.setLatLng([lat, lon]);
   };
 
-  map.on("click", (event) => {
+  map.on("click", async (event) => {
     const { lat, lng } = event.latlng;
     clickToken += 1;
-    manualCountry = false;
-    manualLocation = false;
-    manualAltitude = false;
+    userTouchedCountry = false;
+    userTouchedLocation = false;
+    userTouchedAltitude = false;
     latInput.value = lat.toFixed(5);
     lonInput.value = lng.toFixed(5);
     setMarker(lat, lng);
-    fetchElevation(lat.toFixed(5), lng.toFixed(5));
-    fetchReverseGeocode(lat.toFixed(5), lng.toFixed(5));
+    await fetchReverseGeocode(lat.toFixed(5), lng.toFixed(5));
+    await fetchElevation(lat.toFixed(5), lng.toFixed(5));
   });
 
   const syncFromInputs = () => {
@@ -169,14 +185,20 @@ const setupAddMap = () => {
 
   latInput?.addEventListener("change", syncFromInputs);
   lonInput?.addEventListener("change", syncFromInputs);
-  altitudeInput?.addEventListener("input", () => {
-    manualAltitude = true;
+  altitudeInput?.addEventListener("input", (event) => {
+    if (event.isTrusted) {
+      userTouchedAltitude = true;
+    }
   });
-  countryInput?.addEventListener("input", () => {
-    manualCountry = true;
+  countryInput?.addEventListener("input", (event) => {
+    if (event.isTrusted) {
+      userTouchedCountry = true;
+    }
   });
-  locationInput?.addEventListener("input", () => {
-    manualLocation = true;
+  locationInput?.addEventListener("input", (event) => {
+    if (event.isTrusted) {
+      userTouchedLocation = true;
+    }
   });
 
   const parseButton = document.getElementById("parse-maps");
@@ -194,15 +216,15 @@ const setupAddMap = () => {
       if (result.ok) {
         status.textContent = "Coordinates updated.";
         clickToken += 1;
-        manualCountry = false;
-        manualLocation = false;
-        manualAltitude = false;
+        userTouchedCountry = false;
+        userTouchedLocation = false;
+        userTouchedAltitude = false;
         latInput.value = result.lat.toFixed(5);
         lonInput.value = result.lon.toFixed(5);
         setMarker(result.lat, result.lon);
         map.setView([result.lat, result.lon], 7);
-        fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
-        fetchReverseGeocode(result.lat.toFixed(5), result.lon.toFixed(5));
+        await fetchReverseGeocode(result.lat.toFixed(5), result.lon.toFixed(5));
+        await fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
       } else {
         status.textContent = result.error || "Unable to parse.";
       }
@@ -211,7 +233,7 @@ const setupAddMap = () => {
 };
 
 const setupMapView = () => {
-  const mapEl = document.getElementById("map");
+  const mapEl = document.getElementById("map-view");
   if (!mapEl || !window.coffeeMapData) return;
 
   const map = L.map(mapEl).setView([15, 0], 2);
