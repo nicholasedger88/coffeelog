@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Altitude</h1>
+    <p>See coffees on a topographic backdrop.</p>
+  </div>
+</section>
+
+{% include "partials/_filters.html" %}
+
+<section class="card map-card">
+  <div id="altitude-map" class="map map--tall"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.coffeeAltitudeData = {{ coffees|safe }};
+</script>
+{% endblock %}

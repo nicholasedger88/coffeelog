@@ -342,6 +342,85 @@ const setupMapView = () => {
   legend.addTo(map);
 };
 
+const setupAltitudeMap = () => {
+  const mapEl = document.getElementById("altitude-map");
+  if (!mapEl || !window.coffeeAltitudeData) return;
+
+  const map = L.map(mapEl).setView([15, 0], 2);
+  L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+    attribution:
+      'Map data: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Tiles: © <a href="https://opentopomap.org">OpenTopoMap</a>',
+  }).addTo(map);
+
+  const ratingColors = {
+    5: "#1d4ed8",
+    4: "#3b82f6",
+    3: "#cbd5e1",
+    2: "#fca5a5",
+    1: "#ef4444",
+  };
+
+  const flagForCountry = (country) => {
+    if (!country || !window.countryFlags) return "";
+    const flag = window.countryFlags[country];
+    return flag ? `${flag} ` : "";
+  };
+
+  const bounds = [];
+  window.coffeeAltitudeData.forEach((coffee) => {
+    const lat = coffee.latitude;
+    const lon = coffee.longitude;
+    if (lat === null || lon === null) return;
+    const rating = coffee.rating || 3;
+    const color = ratingColors[rating] || ratingColors[3];
+    const marker = L.circleMarker([lat, lon], {
+      radius: 5,
+      weight: 1,
+      color,
+      fillColor: color,
+      fillOpacity: 0.85,
+    }).addTo(map);
+    bounds.push([lat, lon]);
+    const headline = `<strong>${coffee.brand || "Unknown roaster"}${
+      coffee.varietal ? ` · ${coffee.varietal}` : ""
+    }</strong>`;
+    const location = `${flagForCountry(coffee.country)}${coffee.country || ""}${
+      coffee.location ? ` · ${coffee.location}` : ""
+    }`;
+    const details = [
+      headline,
+      location,
+      coffee.rating ? `Rating: ${coffee.rating} / 5` : "",
+      coffee.altitude_m ? `Altitude: ⛰ ${coffee.altitude_m} m` : "",
+      coffee.id ? `<a class="popup-link" href="/log?entry_id=${coffee.id}">View entry</a>` : "",
+    ]
+      .filter(Boolean)
+      .join("<br>");
+    marker.bindPopup(details);
+  });
+
+  if (bounds.length) {
+    map.fitBounds(bounds, { padding: [30, 30] });
+  }
+
+  const legend = L.control({ position: "bottomright" });
+  legend.onAdd = () => {
+    const div = document.createElement("div");
+    div.className = "map-legend";
+    div.innerHTML = `
+      <div class="map-legend__title">Topo view</div>
+      <div class="map-legend__subtitle">Pins coloured by rating</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[5]}"></span>5</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[4]}"></span>4</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[3]}"></span>3</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[2]}"></span>2</div>
+      <div class="map-legend__item"><span style="background:${ratingColors[1]}"></span>1</div>
+    `;
+    return div;
+  };
+  legend.addTo(map);
+};
+
 const setupOriginMaps = () => {
   const originMaps = document.querySelectorAll(".origin-map");
   if (!originMaps.length) return;
@@ -482,5 +561,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGrindSettings();
   setupAddMap();
   setupMapView();
+  setupAltitudeMap();
   setupOriginMaps();
 });

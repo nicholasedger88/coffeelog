@@ -294,6 +294,12 @@ button.secondary,
   margin-bottom: 6px;
 }
 
+.map-legend__subtitle {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
 .map-legend__item {
   display: flex;
   align-items: center;

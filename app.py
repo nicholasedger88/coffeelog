@@ -371,6 +371,29 @@ def map_view() -> Any:
     )
 
 
+@app.route("/altitude")
+def altitude_view() -> Any:
+    init_db()
+    filters = build_filters_from_request(request.args)
+    coffees = [
+        dict(row)
+        for row in fetch_coffees(filters)
+        if row["latitude"] is not None and row["longitude"] is not None
+    ]
+    return render_template(
+        "altitude.html",
+        coffees=json.dumps(coffees),
+        build_query=build_query,
+        distinct_values={
+            "brand": get_distinct_values("brand"),
+            "varietal": get_distinct_values("varietal"),
+            "country": get_distinct_values("country"),
+            "process": get_distinct_values("process"),
+            "brew_style": get_distinct_values("brew_style"),
+        },
+    )
+
+
 @app.route("/api/suggest")
 def suggest() -> Any:
     field = request.args.get("field", "")
