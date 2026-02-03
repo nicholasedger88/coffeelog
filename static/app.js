@@ -228,6 +228,12 @@ const setupMapView = () => {
     1: "#ef4444",
   };
 
+  const flagForCountry = (country) => {
+    if (!country || !window.countryFlags) return "";
+    const flag = window.countryFlags[country];
+    return flag ? `${flag} ` : "";
+  };
+
   window.coffeeMapData.forEach((coffee) => {
     const lat = coffee.latitude;
     const lon = coffee.longitude;
@@ -245,7 +251,9 @@ const setupMapView = () => {
     const details = [
       `<strong>${coffee.brand || "Unknown roaster"}</strong>`,
       `${coffee.varietal || ""} ${coffee.origin_region || ""}`.trim(),
-      `${coffee.country || ""}${coffee.location ? ` · ${coffee.location}` : ""}`,
+      `${flagForCountry(coffee.country)}${coffee.country || ""}${
+        coffee.location ? ` · ${coffee.location}` : ""
+      }`,
       coffee.brew_style ? `Brew: ${coffee.brew_style}` : "",
       coffee.rating ? `Rating: ${coffee.rating}/5` : "",
       coffee.flavours ? `Flavours: ${coffee.flavours}` : "",

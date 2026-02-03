@@ -22,7 +22,7 @@
       </div>
       <div class="card-body">
         <div class="meta">
-          <span>{{ coffee.country or "" }}</span>
+          <span>{% if coffee.country %}{{ coffee.country|flag_country }}{% endif %}</span>
           {% if coffee.location %}<span>· {{ coffee.location }}</span>{% endif %}
         </div>
         {% if coffee.flavours %}

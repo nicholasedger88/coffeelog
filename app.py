@@ -19,9 +19,53 @@ BELINDA_SETTINGS = [str(i) for i in range(1, 13)]
 ALLOWED_BREW_STYLES = ["Aeropress", "Moka pot", "V60"]
 ALLOWED_PROCESSES = ["washed", "natural", "anaerobic", "honey", "experimental"]
 ELEVATION_API = "https://api.open-elevation.com/api/v1/lookup"
+COUNTRY_CODES = {
+    "Brazil": "BR",
+    "Burundi": "BI",
+    "Colombia": "CO",
+    "Costa Rica": "CR",
+    "Ethiopia": "ET",
+    "Guatemala": "GT",
+    "Indonesia": "ID",
+    "Kenya": "KE",
+    "Panama": "PA",
+    "Peru": "PE",
+    "Rwanda": "RW",
+    "Tanzania": "TZ",
+}
 
 app = Flask(__name__)
 app.secret_key = "coffee-log-mvp"
+
+
+def emoji_flag(country_code: str) -> str:
+    return "".join(chr(127397 + ord(char)) for char in country_code.upper())
+
+
+def flag_for_country(country: str | None) -> str | None:
+    if not country:
+        return None
+    code = COUNTRY_CODES.get(country)
+    if not code:
+        return None
+    return emoji_flag(code)
+
+
+@app.context_processor
+def inject_country_flags() -> dict[str, Any]:
+    return {
+        "country_flags": {
+            country: flag_for_country(country) for country in COUNTRY_CODES.keys()
+        }
+    }
+
+
+@app.template_filter("flag_country")
+def flag_country(country: str) -> str:
+    flag = flag_for_country(country)
+    if not flag:
+        return country
+    return f"{flag} {country}"
 
 
 SCHEMA_SQL = """
