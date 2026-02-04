@@ -261,8 +261,26 @@ def get_db() -> sqlite3.Connection:
 def init_db() -> None:
     conn = get_db()
     conn.executescript(SCHEMA_SQL)
+    migrate_bags_schema(conn)
     conn.commit()
     conn.close()
+
+
+def migrate_bags_schema(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(bags)").fetchall()}
+    migrations = {
+        "flavours": "ALTER TABLE bags ADD COLUMN flavours TEXT;",
+        "photo_path": "ALTER TABLE bags ADD COLUMN photo_path TEXT;",
+        "continent": "ALTER TABLE bags ADD COLUMN continent TEXT;",
+    }
+    for column, statement in migrations.items():
+        if column in columns:
+            continue
+        try:
+            conn.execute(statement)
+            app.logger.info("Migrated: added bags.%s", column)
+        except sqlite3.OperationalError:
+            pass
 
 
 def normalize_flavours(raw: str) -> str:
