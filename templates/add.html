@@ -152,6 +152,63 @@
             {% endfor %}
           </select>
         </label>
+        <div class="recipe-toggle" data-target="recipe-basics">
+          <span>Want to log the recipe?</span>
+          <span class="toggle-icon" aria-hidden="true">▾</span>
+        </div>
+        <div class="recipe-panel" id="recipe-basics">
+          <div class="form-grid">
+            <label>
+              Beans ground (g)
+              <input type="number" step="0.1" name="dose_g" min="0" max="100" />
+            </label>
+            <label>
+              Water (ml)
+              <input type="number" name="water_ml" min="0" max="2000" />
+            </label>
+          </div>
+          <div class="recipe-toggle recipe-toggle--nested" data-target="recipe-details">
+            <span>Add more details</span>
+            <span class="toggle-icon" aria-hidden="true">▾</span>
+          </div>
+          <div class="recipe-panel" id="recipe-details">
+            <div class="form-grid">
+              <label>
+                Temp (°C)
+                <input type="number" step="0.1" name="temp_c" min="0" max="100" />
+              </label>
+              <label>
+                Total brew time (s)
+                <input type="number" name="total_brew_s" min="0" max="3600" />
+              </label>
+              <label>
+                Pour time (s)
+                <input type="number" name="pour_time_s" min="0" max="3600" />
+              </label>
+              <label>
+                Bloom water (ml)
+                <input type="number" name="bloom_water_ml" min="0" max="1000" />
+              </label>
+              <label>
+                Bloom time (s)
+                <input type="number" name="bloom_time_s" min="0" max="600" />
+              </label>
+              <label>
+                Agitation
+                <select name="agitation">
+                  <option value="">Select</option>
+                  <option value="none">None</option>
+                  <option value="swirl">Swirl</option>
+                  <option value="stir">Stir</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Recipe notes
+              <textarea name="recipe_notes" rows="3" placeholder="Any adjustments or recipe context"></textarea>
+            </label>
+          </div>
+        </div>
         <label>
           Grinder *
           <select name="grinder" id="grinder-select" required>

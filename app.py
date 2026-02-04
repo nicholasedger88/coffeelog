@@ -96,6 +96,63 @@ def format_grind_setting(value: str, grinder: str | None = None) -> str:
     return value
 
 
+@app.template_filter("format_duration")
+def format_duration(seconds: int | float | None) -> str:
+    if seconds is None:
+        return ""
+    total = int(round(seconds))
+    minutes = total // 60
+    remaining = total % 60
+    return f"{minutes}:{remaining:02d}"
+
+
+@app.template_filter("recipe_summary")
+def recipe_summary(brew: sqlite3.Row | dict[str, Any]) -> str:
+    def get_value(key: str) -> Any:
+        return brew[key] if isinstance(brew, sqlite3.Row) else brew.get(key)
+
+    def format_amount(value: float | None, suffix: str) -> str:
+        if value is None:
+            return ""
+        text = f"{value:.1f}".rstrip("0").rstrip(".")
+        return f"{text}{suffix}"
+
+    parts: list[str] = []
+    dose = get_value("dose_g")
+    if dose is not None:
+        parts.append(format_amount(float(dose), "g"))
+    water = get_value("water_ml")
+    if water is not None:
+        parts.append(f"{int(water)}ml")
+    temp = get_value("temp_c")
+    if temp is not None:
+        parts.append(format_amount(float(temp), "°C"))
+    total = get_value("total_brew_s")
+    if total is not None:
+        parts.append(format_duration(total))
+    return " · ".join([part for part in parts if part])
+
+
+@app.template_filter("has_recipe")
+def has_recipe(brew: sqlite3.Row | dict[str, Any]) -> bool:
+    fields = [
+        "dose_g",
+        "water_ml",
+        "temp_c",
+        "total_brew_s",
+        "pour_time_s",
+        "bloom_water_ml",
+        "bloom_time_s",
+        "agitation",
+        "recipe_notes",
+    ]
+    for field in fields:
+        value = brew[field] if isinstance(brew, sqlite3.Row) else brew.get(field)
+        if value not in (None, ""):
+            return True
+    return False
+
+
 def build_query(args: dict[str, str], **updates: str) -> str:
     data = dict(args)
     for key, value in updates.items():
@@ -180,6 +237,15 @@ CREATE TABLE IF NOT EXISTS brews (
     grinder TEXT NOT NULL,
     grind_setting TEXT NOT NULL,
     notes TEXT,
+    dose_g REAL,
+    water_ml INTEGER,
+    temp_c REAL,
+    total_brew_s INTEGER,
+    pour_time_s INTEGER,
+    bloom_water_ml INTEGER,
+    bloom_time_s INTEGER,
+    agitation TEXT,
+    recipe_notes TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (bag_id) REFERENCES bags(id) ON DELETE CASCADE
 );
@@ -323,6 +389,47 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
     data["grind_setting"] = grind_setting
 
     data["notes"] = form.get("notes", "").strip()
+    data["recipe_notes"] = form.get("recipe_notes", "").strip()
+
+    dose_g = parse_optional_float(form.get("dose_g"))
+    if dose_g is not None and not (0 < dose_g <= 100):
+        errors.append("Dose must be between 0 and 100g.")
+    data["dose_g"] = dose_g
+
+    water_ml = parse_optional_int(form.get("water_ml"))
+    if water_ml is not None and not (0 < water_ml <= 2000):
+        errors.append("Water must be between 0 and 2000ml.")
+    data["water_ml"] = water_ml
+
+    temp_c = parse_optional_float(form.get("temp_c"))
+    if temp_c is not None and not (0 < temp_c <= 100):
+        errors.append("Temperature must be between 0 and 100°C.")
+    data["temp_c"] = temp_c
+
+    total_brew_s = parse_optional_int(form.get("total_brew_s"))
+    if total_brew_s is not None and not (0 <= total_brew_s <= 3600):
+        errors.append("Total brew time must be between 0 and 3600s.")
+    data["total_brew_s"] = total_brew_s
+
+    pour_time_s = parse_optional_int(form.get("pour_time_s"))
+    if pour_time_s is not None and not (0 <= pour_time_s <= 3600):
+        errors.append("Pour time must be between 0 and 3600s.")
+    data["pour_time_s"] = pour_time_s
+
+    bloom_water_ml = parse_optional_int(form.get("bloom_water_ml"))
+    if bloom_water_ml is not None and not (0 <= bloom_water_ml <= 1000):
+        errors.append("Bloom water must be between 0 and 1000ml.")
+    data["bloom_water_ml"] = bloom_water_ml
+
+    bloom_time_s = parse_optional_int(form.get("bloom_time_s"))
+    if bloom_time_s is not None and not (0 <= bloom_time_s <= 600):
+        errors.append("Bloom time must be between 0 and 600s.")
+    data["bloom_time_s"] = bloom_time_s
+
+    agitation = form.get("agitation", "").strip()
+    if agitation and agitation not in {"none", "swirl", "stir"}:
+        errors.append("Agitation must be none, swirl, or stir.")
+    data["agitation"] = agitation or None
 
     return data, errors
 
@@ -735,8 +842,10 @@ def add_coffee() -> Any:
                 """
                 INSERT INTO brews (
                     bag_id, date, rating, brew_style, grinder,
-                    grind_setting, notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    grind_setting, notes, dose_g, water_ml, temp_c,
+                    total_brew_s, pour_time_s, bloom_water_ml, bloom_time_s,
+                    agitation, recipe_notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     bag_id,
@@ -746,6 +855,15 @@ def add_coffee() -> Any:
                     brew_data["grinder"],
                     brew_data["grind_setting"],
                     brew_data["notes"],
+                    brew_data["dose_g"],
+                    brew_data["water_ml"],
+                    brew_data["temp_c"],
+                    brew_data["total_brew_s"],
+                    brew_data["pour_time_s"],
+                    brew_data["bloom_water_ml"],
+                    brew_data["bloom_time_s"],
+                    brew_data["agitation"],
+                    brew_data["recipe_notes"],
                     datetime.utcnow().isoformat(timespec="seconds"),
                 ),
             )

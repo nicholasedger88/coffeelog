@@ -119,6 +119,9 @@
             {{ brew.brew_style }} · {{ brew.grinder }} · {{ brew.grind_setting|format_grind(brew.grinder) }}
             · Rating {{ brew.rating }} / 5
           </p>
+          {% if brew|has_recipe %}
+            <p class="recipe-summary">{{ brew|recipe_summary }}</p>
+          {% endif %}
           {% if brew.notes %}
             <p class="stats-entry-date">{{ brew.notes }}</p>
           {% endif %}
@@ -128,6 +131,25 @@
           <a class="action-link" href="{{ url_for('map_view') }}?entry_id={{ brew.id }}">View on map</a>
         </div>
       </article>
+      {% if brew|has_recipe %}
+        <details class="recipe-details">
+          <summary>Recipe details</summary>
+          <div class="recipe-details-body">
+            {% if brew.bloom_time_s or brew.bloom_water_ml %}
+              <p>Bloom: {{ brew.bloom_water_ml or "—" }} ml · {{ brew.bloom_time_s|format_duration }}</p>
+            {% endif %}
+            {% if brew.pour_time_s %}
+              <p>Pour time: {{ brew.pour_time_s|format_duration }}</p>
+            {% endif %}
+            {% if brew.agitation %}
+              <p>Agitation: {{ brew.agitation }}</p>
+            {% endif %}
+            {% if brew.recipe_notes %}
+              <p>{{ brew.recipe_notes }}</p>
+            {% endif %}
+          </div>
+        </details>
+      {% endif %}
     {% else %}
       <p class="empty">No brews yet for this bag.</p>
     {% endfor %}

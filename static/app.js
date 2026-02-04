@@ -389,6 +389,17 @@ const setupAddMap = () => {
   }
 };
 
+const setupRecipeAccordion = () => {
+  document.querySelectorAll(".recipe-toggle").forEach((toggle) => {
+    const targetId = toggle.dataset.target;
+    const panel = targetId ? document.getElementById(targetId) : null;
+    if (!panel) return;
+    toggle.addEventListener("click", () => {
+      panel.classList.toggle("active");
+    });
+  });
+};
+
 const setupMapView = () => {
   const mapEl = document.getElementById("map-view");
   if (!mapEl || !window.coffeeMapData) return;
@@ -856,6 +867,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupGrindSettings();
   setupBagSelector();
   setupAddMap();
+  setupRecipeAccordion();
   setupMapView();
   setupAltitudeChart();
   setupEquatorChart();
