@@ -89,13 +89,68 @@ const setupGrindSettings = () => {
     grindSetting.appendChild(placeholder);
     options.forEach((optionValue) => {
       const option = document.createElement("option");
-      option.value = optionValue;
-      option.textContent = optionValue;
+      if (typeof optionValue === "string") {
+        option.value = optionValue;
+        option.textContent = optionValue;
+      } else {
+        option.value = optionValue.value;
+        option.textContent = optionValue.label;
+      }
       grindSetting.appendChild(option);
     });
   };
 
   grinder.addEventListener("change", updateOptions);
+};
+
+const setupBagSelector = () => {
+  const selector = document.getElementById("bag-selector");
+  const bagIdInput = document.getElementById("bag-id");
+  const toggle = document.getElementById("create-bag-toggle");
+  const panel = document.getElementById("new-bag-panel");
+  if (!selector || !bagIdInput || !window.coffeeLogConfig) return;
+
+  const bagOptions = window.coffeeLogConfig.bagOptions || [];
+  const labels = bagOptions.map((bag) => ({
+    id: String(bag.id),
+    label: `${bag.coffee_name} — ${bag.brand}`,
+  }));
+
+  const syncSelection = () => {
+    const match = labels.find((item) => item.label === selector.value.trim());
+    bagIdInput.value = match ? match.id : "";
+  };
+
+  const togglePanel = () => {
+    const active = toggle?.checked;
+    if (panel) {
+      panel.style.display = active ? "block" : "none";
+    }
+    if (active) {
+      bagIdInput.value = "";
+    } else {
+      syncSelection();
+    }
+  };
+
+  selector.addEventListener("change", syncSelection);
+  selector.addEventListener("input", syncSelection);
+  toggle?.addEventListener("change", togglePanel);
+
+  if (selector.dataset.selectedId) {
+    const preset = labels.find((item) => item.id === selector.dataset.selectedId);
+    if (preset) {
+      selector.value = preset.label;
+      bagIdInput.value = preset.id;
+    }
+  }
+
+  if (!bagIdInput.value) {
+    if (toggle) {
+      toggle.checked = true;
+    }
+  }
+  togglePanel();
 };
 
 const setupAddMap = () => {
@@ -308,7 +363,10 @@ const setupMapView = () => {
       markersById[coffee.id] = marker;
     }
     bounds.push([lat, lon]);
-    const title = `${coffee.brand || "Unknown roaster"}${coffee.varietal ? ` · ${coffee.varietal}` : ""}`;
+    const title = `${coffee.coffee_name || "Untitled bag"}`;
+    const brandLine = `${coffee.brand || "Unknown roaster"}${
+      coffee.varietal ? ` · ${coffee.varietal}` : ""
+    }`;
     const locationLine = `${flagForCountry(coffee.country)}${coffee.country || ""}${
       coffee.location ? ` · ${coffee.location}` : ""
     }`;
@@ -325,6 +383,7 @@ const setupMapView = () => {
     const details = `
       <div class="popup-card">
         <div class="popup-title">${title}</div>
+        ${brandLine ? `<div class="popup-sub">${brandLine}</div>` : ""}
         ${locationLine ? `<div class="popup-sub">${locationLine}</div>` : ""}
         ${metaLine ? `<div class="popup-meta">${metaLine}</div>` : ""}
         ${altitudeLine ? `<div class="popup-altitude">${altitudeLine}</div>` : ""}
@@ -339,7 +398,7 @@ const setupMapView = () => {
   }
 
   const params = new URLSearchParams(window.location.search);
-  const entryId = params.get("entry_id");
+  const entryId = params.get("entry_id") || window.latestBrewId;
   if (entryId && markersById[entryId]) {
     const marker = markersById[entryId];
     const position = marker.getLatLng();
@@ -400,6 +459,7 @@ const setupAltitudeChart = () => {
         y: coffee.altitude_m,
         r: rating,
         id: coffee.id,
+        coffee_name: coffee.coffee_name,
         brand: coffee.brand,
         varietal: coffee.varietal,
         country: coffee.country,
@@ -457,6 +517,7 @@ const setupAltitudeChart = () => {
               const raw = ctx.raw || {};
               const location = [raw.country, raw.location].filter(Boolean).join(", ");
               return [
+                `${raw.coffee_name || "Untitled bag"}`,
                 `${raw.brand || "Unknown roaster"}${raw.varietal ? ` · ${raw.varietal}` : ""}`,
                 location,
                 `Altitude: ${raw.altitude} m`,
@@ -617,6 +678,7 @@ const setupOriginMaps = () => {
 document.addEventListener("DOMContentLoaded", () => {
   setupAutocomplete();
   setupGrindSettings();
+  setupBagSelector();
   setupAddMap();
   setupMapView();
   setupAltitudeChart();

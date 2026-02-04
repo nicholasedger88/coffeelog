@@ -3,8 +3,8 @@
 {% block content %}
 <section class="page-header">
   <div>
-    <h1>Coffee log</h1>
-    <p>Browse your latest pours and flavour memories.</p>
+    <h1>Brew log</h1>
+    <p>Review each brew attempt and its dial-in details.</p>
   </div>
 </section>
 
@@ -18,7 +18,8 @@
     <article class="card coffee-card{% if is_target %} highlight{% endif %}{% if coffee.latitude and coffee.longitude %} has-map{% endif %}" id="entry-{{ coffee.id }}">
       <div class="card-header">
         <div>
-          <h2>{{ coffee.brand or "Unknown roaster" }}</h2>
+          <h2>{{ coffee.coffee_name or "Untitled bag" }}</h2>
+          <p class="card-subtitle">{{ coffee.brand or "Unknown roaster" }}</p>
         </div>
         <span class="rating">{{ coffee.rating }}/5</span>
       </div>
@@ -71,6 +72,10 @@
                 <span class="detail-value">{{ coffee.flavours or "—" }}</span>
               </div>
               <div class="detail-row">
+                <span class="detail-label">Notes</span>
+                <span class="detail-value">{{ coffee.notes or "—" }}</span>
+              </div>
+              <div class="detail-row">
                 <span class="detail-label">Brew method</span>
                 <span class="detail-value">
                   {% if coffee.brew_style %}
@@ -86,14 +91,14 @@
                 <span class="detail-label">Grinder</span>
                 <span class="detail-value">
                   {% if coffee.grinder %}
-                    {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting }}{% endif %}
+                    {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting|format_grind(coffee.grinder) }}{% endif %}
                   {% else %}
                     —
                   {% endif %}
                 </span>
               </div>
               <div class="detail-row">
-                <span class="detail-label">Brand</span>
+                <span class="detail-label">Bag</span>
                 <span class="detail-value">
                   {% if coffee.brand %}
                     <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">
@@ -143,10 +148,11 @@
       </div>
       <div class="card-footer">
         <span>{{ coffee.date }}</span>
+        <a class="value-link" href="{{ url_for('bag_detail', bag_id=coffee.bag_id) }}">View bag</a>
       </div>
     </article>
   {% else %}
-    <p class="empty">No coffees yet. Add your first one!</p>
+    <p class="empty">No brews yet. Log your first one!</p>
   {% endfor %}
 </section>
 
@@ -158,7 +164,7 @@
 
 <form method="post" action="{{ url_for('seed_route') }}" class="seed">
   <button type="submit" class="secondary">Seed demo data</button>
-  <p>For demo only — this will add ~60 sample coffees.</p>
+  <p>For demo only — this will add ~60 sample brews.</p>
 </form>
 
 {% if entry_id %}

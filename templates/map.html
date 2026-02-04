@@ -20,5 +20,6 @@
 {% block scripts %}
 <script>
   window.coffeeMapData = {{ coffees|safe }};
+  window.latestBrewId = {{ latest_brew_id or "null" }};
 </script>
 {% endblock %}

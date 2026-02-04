@@ -9,6 +9,17 @@
       <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" />
     </label>
     <label>
+      Coffee name
+      <select name="coffee_name">
+        <option value="">All</option>
+        {% for value in distinct_values.coffee_name %}
+          <option value="{{ value }}" {% if request.args.get('coffee_name') == value %}selected{% endif %}>
+            {{ value }}
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
       Brand
       <select name="brand">
         <option value="">All</option>
@@ -32,6 +43,15 @@
         <option value="">All</option>
         {% for value in distinct_values.country %}
           <option value="{{ value }}" {% if request.args.get('country') == value %}selected{% endif %}>{{ value|flag_country }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Location
+      <select name="location">
+        <option value="">All</option>
+        {% for value in distinct_values.location %}
+          <option value="{{ value }}" {% if request.args.get('location') == value %}selected{% endif %}>{{ value }}</option>
         {% endfor %}
       </select>
     </label>

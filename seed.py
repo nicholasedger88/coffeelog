@@ -28,6 +28,18 @@ COUNTRIES = [
 ]
 
 BRANDS = ["Dak", "Friedhats", "Onyx", "Five Elephant", "Tim Wendelboe", "Passenger"]
+COFFEE_NAMES = [
+    "Morning Drift",
+    "Cinder Bloom",
+    "Rain Song",
+    "Amber Grove",
+    "Field Note",
+    "Aurora",
+    "Cedar Valley",
+    "Driftwood",
+    "Mesa",
+    "Lumen",
+]
 VARIETALS = ["Bourbon", "Gesha", "Caturra", "SL28", "Heirloom", "Pacamara"]
 PROCESSES = ["washed", "natural", "anaerobic", "honey"]
 FLAVOURS = [
@@ -37,50 +49,80 @@ FLAVOURS = [
     "pineapple, lemongrass, honey",
     "blackberry, florals, lime",
 ]
+NOTES = [
+    "Sour, thin — went too coarse. Next: finer grind.",
+    "Sweeter, more body — reduced sourness.",
+    "Bright acidity, floral finish. Slightly faster pour.",
+    "Bitter edge; extend bloom and grind coarser.",
+    "Juicy and balanced. Keep ratio similar.",
+]
 
 
 def seed_data(conn: sqlite3.Connection) -> int:
     cursor = conn.cursor()
     now = datetime.utcnow()
-    count = 0
+    bag_ids: list[int] = []
 
-    for i in range(60):
+    for _ in range(20):
         country, location, lat, lon = random.choice(COUNTRIES)
-        grinder = random.choice(ALLOWED_GRINDERS)
-        grind_setting = random.choice(AERGRIND_SETTINGS if grinder == "Aergrind (Nicholas)" else BELINDA_SETTINGS)
-        date_value = (now - timedelta(days=random.randint(0, 120))).date().isoformat()
+        coffee_name = random.choice(COFFEE_NAMES)
+        brand = random.choice(BRANDS)
+        varietal = random.choice(VARIETALS)
         altitude = random.randint(1200, 2200)
-
         cursor.execute(
             """
-            INSERT INTO coffees (
-                date, brand, varietal, altitude_m, latitude, longitude,
-                location, country, process, flavours, rating, grinder, grind_setting,
-                brew_style, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO bags (
+                coffee_name, brand, varietal, country, location, process,
+                latitude, longitude, altitude_m, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                date_value,
-                random.choice(BRANDS),
-                random.choice(VARIETALS),
-                altitude,
+                coffee_name,
+                brand,
+                varietal,
+                country,
+                location,
+                random.choice(PROCESSES),
                 lat + random.uniform(-0.3, 0.3),
                 lon + random.uniform(-0.3, 0.3),
-                location,
-                country,
-                random.choice(PROCESSES),
-                random.choice(FLAVOURS),
-                random.randint(3, 5),
-                grinder,
-                grind_setting,
-                random.choice(ALLOWED_BREW_STYLES),
+                altitude,
                 now.isoformat(timespec="seconds"),
             ),
         )
-        count += 1
+        bag_ids.append(cursor.lastrowid)
+
+    brew_count = 0
+    for bag_id in bag_ids:
+        for _ in range(random.randint(2, 4)):
+            grinder = random.choice(ALLOWED_GRINDERS)
+            if grinder == "Aergrind (Nicholas)":
+                grind_setting = random.choice(AERGRIND_SETTINGS)["value"]
+            else:
+                grind_setting = random.choice(BELINDA_SETTINGS)
+            date_value = (now - timedelta(days=random.randint(0, 120))).date().isoformat()
+            cursor.execute(
+                """
+                INSERT INTO brews (
+                    bag_id, date, flavours, rating, brew_style, grinder,
+                    grind_setting, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    bag_id,
+                    date_value,
+                    random.choice(FLAVOURS),
+                    random.randint(2, 5),
+                    random.choice(ALLOWED_BREW_STYLES),
+                    grinder,
+                    grind_setting,
+                    random.choice(NOTES),
+                    now.isoformat(timespec="seconds"),
+                ),
+            )
+            brew_count += 1
 
     conn.commit()
-    return count
+    return brew_count
 
 
 if __name__ == "__main__":
@@ -88,4 +130,4 @@ if __name__ == "__main__":
     connection = sqlite3.connect("coffeelog.db")
     inserted = seed_data(connection)
     connection.close()
-    print(f"Seeded {inserted} coffees.")
+    print(f"Seeded {inserted} brews.")

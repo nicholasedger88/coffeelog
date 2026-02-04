@@ -4,7 +4,7 @@
 <section class="page-header stats-header">
   <div>
     <h1>Stats</h1>
-    <p>At-a-glance patterns across your coffees, with quick drill-ins.</p>
+    <p>At-a-glance patterns across your brews, with quick drill-ins.</p>
   </div>
 </section>
 
@@ -49,7 +49,7 @@
         <p class="stats-kicker">Drill-in</p>
         <h2>{{ selection.title }}</h2>
         <p class="stats-detail-meta">
-          {{ selection.n }} coffees ·
+          {{ selection.n }} brews ·
           {% if selection.avg_rating %}
             {{ "%.1f"|format(selection.avg_rating) }} / 5 avg rating
           {% else %}
@@ -65,11 +65,13 @@
       {% for coffee in selection_coffees %}
         <article class="stats-entry">
           <div>
-            <h3>{{ coffee.brand or "Unknown roaster" }}</h3>
+            <h3>{{ coffee.coffee_name or "Untitled bag" }}</h3>
             <p class="stats-entry-meta">
-              {% if coffee.varietal %}{{ coffee.varietal }} · {% endif %}
-              {% if coffee.country %}{{ coffee.country|flag_country }}{% endif %}
-              {% if coffee.location %} · {{ coffee.location }}{% endif %}
+              {{ coffee.brand or "Unknown roaster" }}
+              {% if coffee.varietal %} · {{ coffee.varietal }}{% endif %}
+              {% if coffee.country %} · {{ coffee.country|flag_country }}{% endif %}
+              {% if coffee.location %}{% if coffee.country %} · {% endif %}{{ coffee.location }}{% endif %}
+              · {{ coffee.brew_style }}
               · Rating {{ coffee.rating }} / 5
             </p>
             <p class="stats-entry-date">{{ coffee.date }}</p>
@@ -77,10 +79,11 @@
           <div class="stats-entry-actions">
             <a class="secondary" href="{{ url_for('log') }}?entry_id={{ coffee.id }}">View entry</a>
             <a class="secondary" href="{{ url_for('map_view') }}?entry_id={{ coffee.id }}">View on map</a>
+            <a class="secondary" href="{{ url_for('bag_detail', bag_id=coffee.bag_id) }}">View bag</a>
           </div>
         </article>
       {% else %}
-        <p class="empty">No coffees found for this selection.</p>
+        <p class="empty">No brews found for this selection.</p>
       {% endfor %}
     </div>
   </section>
@@ -170,6 +173,33 @@
 
   <section class="card stats-card">
     <div class="stats-card-header">
+      <h2>Best coffees</h2>
+      <p>Bag names with the best averages.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.coffee_names %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='coffee_name', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No bags yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
       <h2>Best countries</h2>
       <p>Countries with the highest average ratings.</p>
     </div>
@@ -218,6 +248,33 @@
         </div>
       {% else %}
         <p class="empty">No regions yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best processes</h2>
+      <p>Processing styles with top averages.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.processes %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='process', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No processes yet.</p>
       {% endfor %}
     </div>
   </section>

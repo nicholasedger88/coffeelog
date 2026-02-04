@@ -17,7 +17,11 @@ BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / "coffeelog.db"
 
 ALLOWED_GRINDERS = ["Aergrind (Nicholas)", "Belinda’s grinder"]
-AERGRIND_SETTINGS = ["Aergrind Fine", "Aergrind Medium"]
+AERGRIND_SETTINGS = [
+    {"value": f"{rotation}-{click:02d}", "label": f"{rotation} rot, {click} clicks"}
+    for rotation in range(0, 5)
+    for click in range(0, 13)
+]
 BELINDA_SETTINGS = [str(i) for i in range(1, 13)]
 ALLOWED_BREW_STYLES = ["Aeropress", "Moka pot", "V60"]
 ALLOWED_PROCESSES = ["washed", "natural", "anaerobic", "honey", "experimental"]
@@ -78,6 +82,19 @@ def format_latlon(value: float | None) -> str:
     return f"{value:.5f}"
 
 
+@app.template_filter("format_grind")
+def format_grind_setting(value: str, grinder: str | None = None) -> str:
+    if not value:
+        return ""
+    if grinder == "Aergrind (Nicholas)":
+        parts = value.replace("|", "-").split("-")
+        if len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit():
+            rotation = int(parts[0])
+            clicks = int(parts[1])
+            return f"{rotation} rot, {clicks} clicks"
+    return value
+
+
 def build_query(args: dict[str, str], **updates: str) -> str:
     data = dict(args)
     for key, value in updates.items():
@@ -115,6 +132,34 @@ CREATE TABLE IF NOT EXISTS coffees (
     brew_style TEXT,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS bags (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    coffee_name TEXT NOT NULL,
+    brand TEXT NOT NULL,
+    varietal TEXT,
+    country TEXT,
+    location TEXT,
+    process TEXT,
+    latitude REAL,
+    longitude REAL,
+    altitude_m INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS brews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bag_id INTEGER NOT NULL,
+    date TEXT NOT NULL,
+    flavours TEXT,
+    rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+    brew_style TEXT NOT NULL,
+    grinder TEXT NOT NULL,
+    grind_setting TEXT NOT NULL,
+    notes TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (bag_id) REFERENCES bags(id) ON DELETE CASCADE
+);
 """
 
 
@@ -136,6 +181,22 @@ def normalize_flavours(raw: str) -> str:
     return ", ".join(parts)
 
 
+def parse_aergrind_setting(value: str) -> tuple[int, int] | None:
+    if not value:
+        return None
+    parts = value.replace("|", "-").split("-")
+    if len(parts) != 2:
+        return None
+    try:
+        rotation = int(parts[0])
+        clicks = int(parts[1])
+    except ValueError:
+        return None
+    if 0 <= rotation <= 4 and 0 <= clicks <= 12:
+        return rotation, clicks
+    return None
+
+
 def parse_optional_int(value: str | None) -> int | None:
     if value is None or value == "":
         return None
@@ -148,7 +209,44 @@ def parse_optional_float(value: str | None) -> float | None:
     return float(value)
 
 
-def validate_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def validate_bag_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
+    data: dict[str, Any] = {}
+
+    coffee_name = form.get("coffee_name", "").strip()
+    if not coffee_name:
+        errors.append("Coffee name is required.")
+    data["coffee_name"] = coffee_name
+
+    brand = form.get("brand", "").strip()
+    if not brand:
+        errors.append("Brand is required.")
+    data["brand"] = brand
+
+    altitude_m = parse_optional_int(form.get("altitude_m"))
+    if altitude_m is not None:
+        if altitude_m <= 0 or altitude_m > 9000:
+            errors.append("Altitude must be between 1 and 9000 meters.")
+    data["altitude_m"] = altitude_m
+
+    latitude = parse_optional_float(form.get("latitude"))
+    longitude = parse_optional_float(form.get("longitude"))
+    if latitude is not None and (latitude < -90 or latitude > 90):
+        errors.append("Latitude must be between -90 and 90.")
+    if longitude is not None and (longitude < -180 or longitude > 180):
+        errors.append("Longitude must be between -180 and 180.")
+    data["latitude"] = round(latitude, 5) if latitude is not None else None
+    data["longitude"] = round(longitude, 5) if longitude is not None else None
+
+    data["varietal"] = form.get("varietal", "").strip()
+    data["country"] = form.get("country", "").strip()
+    data["location"] = form.get("location", "").strip()
+    data["process"] = form.get("process", "").strip()
+
+    return data, errors
+
+
+def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
     data: dict[str, Any] = {}
 
@@ -170,64 +268,60 @@ def validate_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         except ValueError:
             errors.append("Rating must be between 1 and 5.")
 
+    brew_style = form.get("brew_style", "").strip()
+    if brew_style not in ALLOWED_BREW_STYLES:
+        errors.append("Brew style must be one of the allowed options.")
+    data["brew_style"] = brew_style
+
     grinder = form.get("grinder", "").strip()
-    if grinder and grinder not in ALLOWED_GRINDERS:
+    if grinder not in ALLOWED_GRINDERS:
         errors.append("Grinder must be one of the allowed options.")
     data["grinder"] = grinder
 
     grind_setting = form.get("grind_setting", "").strip()
-    if grinder == "Aergrind (Nicholas)" and grind_setting not in AERGRIND_SETTINGS:
-        errors.append("Choose a valid Aergrind setting.")
+    if grinder == "Aergrind (Nicholas)":
+        if not parse_aergrind_setting(grind_setting):
+            errors.append("Choose a valid Aergrind setting.")
     if grinder == "Belinda’s grinder" and grind_setting not in BELINDA_SETTINGS:
         errors.append("Choose a valid Belinda setting.")
     data["grind_setting"] = grind_setting
 
-    brew_style = form.get("brew_style", "").strip()
-    if brew_style and brew_style not in ALLOWED_BREW_STYLES:
-        errors.append("Brew style must be one of the allowed options.")
-    data["brew_style"] = brew_style
-
-    altitude_m = parse_optional_int(form.get("altitude_m"))
-    if altitude_m is not None:
-        if altitude_m <= 0 or altitude_m > 9000:
-            errors.append("Altitude must be between 1 and 9000 meters.")
-    data["altitude_m"] = altitude_m
-
-    latitude = parse_optional_float(form.get("latitude"))
-    longitude = parse_optional_float(form.get("longitude"))
-    if latitude is not None and (latitude < -90 or latitude > 90):
-        errors.append("Latitude must be between -90 and 90.")
-    if longitude is not None and (longitude < -180 or longitude > 180):
-        errors.append("Longitude must be between -180 and 180.")
-    data["latitude"] = round(latitude, 5) if latitude is not None else None
-    data["longitude"] = round(longitude, 5) if longitude is not None else None
-
-    data["brand"] = form.get("brand", "").strip()
-    data["varietal"] = form.get("varietal", "").strip()
-    data["country"] = form.get("country", "").strip()
-    data["location"] = form.get("location", "").strip()
-    data["process"] = form.get("process", "").strip()
     data["flavours"] = normalize_flavours(form.get("flavours", ""))
+    data["notes"] = form.get("notes", "").strip()
 
     return data, errors
 
 
 def get_distinct_values(field: str) -> list[str]:
-    if field not in {
-        "brand",
-        "varietal",
-        "country",
-        "location",
-        "process",
-        "brew_style",
-    }:
+    bag_fields = {
+        "coffee_name": "bags.coffee_name",
+        "brand": "bags.brand",
+        "varietal": "bags.varietal",
+        "country": "bags.country",
+        "location": "bags.location",
+        "process": "bags.process",
+    }
+    brew_fields = {
+        "brew_style": "brews.brew_style",
+        "grinder": "brews.grinder",
+        "grind_setting": "brews.grind_setting",
+        "flavours": "brews.flavours",
+    }
+    field_expr = bag_fields.get(field) or brew_fields.get(field)
+    if not field_expr:
         return []
     conn = get_db()
     rows = conn.execute(
-        f"SELECT DISTINCT {field} FROM coffees WHERE {field} IS NOT NULL AND {field} != '' ORDER BY {field}"
+        f"""
+        SELECT DISTINCT {field_expr} AS value
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
+        WHERE {field_expr} IS NOT NULL AND {field_expr} != ''
+        ORDER BY {field_expr}
+        """
     ).fetchall()
     conn.close()
-    return [row[field] for row in rows]
+    return [row["value"] for row in rows]
 
 
 def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
@@ -235,28 +329,35 @@ def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
     params: list[Any] = []
 
     if args.get("date_from"):
-        clauses.append("date >= ?")
+        clauses.append("brews.date >= ?")
         params.append(args["date_from"])
     if args.get("date_to"):
-        clauses.append("date <= ?")
+        clauses.append("brews.date <= ?")
         params.append(args["date_to"])
 
-    for field in [
-        "brand",
-        "varietal",
-        "country",
-        "process",
-        "brew_style",
-    ]:
+    bag_fields = {
+        "coffee_name": "bags.coffee_name",
+        "brand": "bags.brand",
+        "varietal": "bags.varietal",
+        "country": "bags.country",
+        "location": "bags.location",
+        "process": "bags.process",
+    }
+    brew_fields = {
+        "brew_style": "brews.brew_style",
+        "grinder": "brews.grinder",
+        "grind_setting": "brews.grind_setting",
+    }
+    for field, column in {**bag_fields, **brew_fields}.items():
         value = args.get(field)
         if value:
-            clauses.append(f"{field} = ?")
+            clauses.append(f"{column} = ?")
             params.append(value)
 
     if args.get("min_rating"):
         try:
             min_rating = int(args["min_rating"])
-            clauses.append("rating >= ?")
+            clauses.append("brews.rating >= ?")
             params.append(min_rating)
         except ValueError:
             pass
@@ -267,11 +368,27 @@ def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
     return where, params
 
 
-def fetch_coffees(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
+def fetch_brews(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
     where, params = filters
     conn = get_db()
     rows = conn.execute(
-        f"SELECT * FROM coffees{where} ORDER BY date DESC, created_at DESC",
+        f"""
+        SELECT
+            brews.*,
+            bags.coffee_name,
+            bags.brand,
+            bags.varietal,
+            bags.country,
+            bags.location,
+            bags.process,
+            bags.latitude,
+            bags.longitude,
+            bags.altitude_m
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
+        {where}
+        ORDER BY brews.date DESC, brews.created_at DESC
+        """,
         params,
     ).fetchall()
     conn.close()
@@ -281,24 +398,28 @@ def fetch_coffees(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
 def fetch_ranked_field(
     field: str, filters: tuple[str, list[Any]], limit: int = 10
 ) -> list[dict[str, Any]]:
-    if field not in {
-        "brand",
-        "varietal",
-        "brew_style",
-        "country",
-        "location",
-        "process",
-    }:
+    field_map = {
+        "coffee_name": "bags.coffee_name",
+        "brand": "bags.brand",
+        "varietal": "bags.varietal",
+        "brew_style": "brews.brew_style",
+        "country": "bags.country",
+        "location": "bags.location",
+        "process": "bags.process",
+    }
+    column = field_map.get(field)
+    if not column:
         return []
     where, params = filters
-    where = combine_where(where, f"{field} IS NOT NULL AND {field} != ''")
+    where = combine_where(where, f"{column} IS NOT NULL AND {column} != ''")
     conn = get_db()
     rows = conn.execute(
         f"""
-        SELECT {field} AS name, AVG(rating) AS avg_rating, COUNT(*) AS n
-        FROM coffees
+        SELECT {column} AS name, AVG(brews.rating) AS avg_rating, COUNT(*) AS n
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
         {where}
-        GROUP BY {field}
+        GROUP BY {column}
         ORDER BY avg_rating DESC, n DESC
         LIMIT ?
         """,
@@ -312,14 +433,15 @@ def fetch_ranked_regions(
     filters: tuple[str, list[Any]], limit: int = 10
 ) -> list[dict[str, Any]]:
     where, params = filters
-    where = combine_where(where, "location IS NOT NULL AND location != ''")
+    where = combine_where(where, "bags.location IS NOT NULL AND bags.location != ''")
     conn = get_db()
     rows = conn.execute(
         f"""
-        SELECT country, location, AVG(rating) AS avg_rating, COUNT(*) AS n
-        FROM coffees
+        SELECT bags.country, bags.location, AVG(brews.rating) AS avg_rating, COUNT(*) AS n
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
         {where}
-        GROUP BY country, location
+        GROUP BY bags.country, bags.location
         ORDER BY avg_rating DESC, n DESC
         LIMIT ?
         """,
@@ -346,9 +468,11 @@ def fetch_ranked_regions(
 def format_coffee_title(row: sqlite3.Row | None) -> str:
     if not row:
         return "Unknown coffee"
-    title = row["brand"] or "Unknown roaster"
-    if row["varietal"]:
-        title = f"{title} · {row['varietal']}"
+    coffee_name = row["coffee_name"] if "coffee_name" in row.keys() else None
+    brand = row["brand"] if "brand" in row.keys() else None
+    title = coffee_name or brand or "Unknown coffee"
+    if coffee_name and brand:
+        title = f"{coffee_name} · {brand}"
     return title
 
 
@@ -363,6 +487,79 @@ def build_altitude_bins() -> list[dict[str, Any]]:
     ]
 
 
+def fetch_bag_options() -> list[sqlite3.Row]:
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT id, coffee_name, brand
+        FROM bags
+        ORDER BY coffee_name, brand
+        """
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def fetch_bag_detail(bag_id: int) -> sqlite3.Row | None:
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM bags WHERE id = ?",
+        (bag_id,),
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def fetch_bag_summary() -> list[sqlite3.Row]:
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT
+            bags.*,
+            COUNT(brews.id) AS brew_count,
+            AVG(brews.rating) AS avg_rating
+        FROM bags
+        LEFT JOIN brews ON brews.bag_id = bags.id
+        GROUP BY bags.id
+        ORDER BY bags.created_at DESC
+        """
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def fetch_brews_for_bag(bag_id: int) -> list[sqlite3.Row]:
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT brews.*, bags.latitude, bags.longitude, bags.altitude_m
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
+        WHERE bags.id = ?
+        ORDER BY brews.date DESC, brews.created_at DESC
+        """,
+        (bag_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def fetch_grind_insights(bag_id: int) -> list[sqlite3.Row]:
+    conn = get_db()
+    rows = conn.execute(
+        """
+        SELECT brews.grinder, brews.grind_setting, AVG(brews.rating) AS avg_rating, COUNT(*) AS n
+        FROM brews
+        WHERE brews.bag_id = ?
+        GROUP BY brews.grinder, brews.grind_setting
+        ORDER BY avg_rating DESC, n DESC
+        """,
+        (bag_id,),
+    ).fetchall()
+    conn.close()
+    return rows
+
+
 @app.route("/")
 def index() -> Any:
     return redirect(url_for("add_coffee"))
@@ -371,43 +568,70 @@ def index() -> Any:
 @app.route("/add", methods=["GET", "POST"])
 def add_coffee() -> Any:
     init_db()
+    bag_options = fetch_bag_options()
+    bag_options_data = [dict(row) for row in bag_options]
+    selected_bag_id = request.args.get("bag_id") or request.form.get("bag_id")
     if request.method == "POST":
-        data, errors = validate_payload(request.form)
+        creating_new = request.form.get("create_bag") == "true"
+        bag_id = parse_optional_int(selected_bag_id)
+        bag_data: dict[str, Any] = {}
+        errors: list[str] = []
+        if creating_new or not bag_id:
+            bag_data, errors = validate_bag_payload(request.form)
+        brew_data, brew_errors = validate_brew_payload(request.form)
+        errors.extend(brew_errors)
+
         if errors:
             for error in errors:
                 flash(error, "error")
         else:
             conn = get_db()
+            if creating_new or not bag_id:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO bags (
+                        coffee_name, brand, varietal, country, location, process,
+                        latitude, longitude, altitude_m, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        bag_data["coffee_name"],
+                        bag_data["brand"],
+                        bag_data["varietal"],
+                        bag_data["country"],
+                        bag_data["location"],
+                        bag_data["process"],
+                        bag_data["latitude"],
+                        bag_data["longitude"],
+                        bag_data["altitude_m"],
+                        datetime.utcnow().isoformat(timespec="seconds"),
+                    ),
+                )
+                bag_id = cursor.lastrowid
+
             conn.execute(
                 """
-                INSERT INTO coffees (
-                    date, brand, varietal, altitude_m, latitude, longitude,
-                    location, country, process, flavours, rating, grinder, grind_setting,
-                    brew_style, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO brews (
+                    bag_id, date, flavours, rating, brew_style, grinder,
+                    grind_setting, notes, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    data["date"],
-                    data["brand"],
-                    data["varietal"],
-                    data["altitude_m"],
-                    data["latitude"],
-                    data["longitude"],
-                    data["location"],
-                    data["country"],
-                    data["process"],
-                    data["flavours"],
-                    data["rating"],
-                    data["grinder"],
-                    data["grind_setting"],
-                    data["brew_style"],
+                    bag_id,
+                    brew_data["date"],
+                    brew_data["flavours"],
+                    brew_data["rating"],
+                    brew_data["brew_style"],
+                    brew_data["grinder"],
+                    brew_data["grind_setting"],
+                    brew_data["notes"],
                     datetime.utcnow().isoformat(timespec="seconds"),
                 ),
             )
             conn.commit()
             conn.close()
-            flash("Coffee logged successfully.", "success")
-            return redirect(url_for("log"))
+            flash("Brew logged successfully.", "success")
+            return redirect(url_for("bag_detail", bag_id=bag_id))
 
     return render_template(
         "add.html",
@@ -417,6 +641,9 @@ def add_coffee() -> Any:
         brew_styles=ALLOWED_BREW_STYLES,
         processes=ALLOWED_PROCESSES,
         today_date=datetime.now().date().isoformat(),
+        bag_options=bag_options,
+        bag_options_data=bag_options_data,
+        selected_bag_id=selected_bag_id,
     )
 
 
@@ -425,16 +652,18 @@ def log() -> Any:
     init_db()
     entry_id = request.args.get("entry_id")
     filters = build_filters_from_request(request.args)
-    coffees = fetch_coffees(filters)
+    coffees = fetch_brews(filters)
     return render_template(
         "log.html",
         coffees=coffees,
         entry_id=entry_id,
         build_query=build_query,
         distinct_values={
+            "coffee_name": get_distinct_values("coffee_name"),
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
             "country": get_distinct_values("country"),
+            "location": get_distinct_values("location"),
             "process": get_distinct_values("process"),
             "brew_style": get_distinct_values("brew_style"),
         },
@@ -445,19 +674,42 @@ def log() -> Any:
 def map_view() -> Any:
     init_db()
     filters = build_filters_from_request(request.args)
+    bag_id = request.args.get("bag_id")
+    where, params = filters
+    if bag_id:
+        where = combine_where(where, "bags.id = ?")
+        params.append(bag_id)
     coffees = [
         dict(row)
-        for row in fetch_coffees(filters)
+        for row in fetch_brews((where, params))
         if row["latitude"] is not None and row["longitude"] is not None
     ]
+    latest_brew_id = None
+    if bag_id:
+        conn = get_db()
+        row = conn.execute(
+            """
+            SELECT id FROM brews
+            WHERE bag_id = ?
+            ORDER BY date DESC, created_at DESC
+            LIMIT 1
+            """,
+            (bag_id,),
+        ).fetchone()
+        conn.close()
+        if row:
+            latest_brew_id = row["id"]
     return render_template(
         "map.html",
         coffees=json.dumps(coffees),
+        latest_brew_id=latest_brew_id,
         build_query=build_query,
         distinct_values={
+            "coffee_name": get_distinct_values("coffee_name"),
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
             "country": get_distinct_values("country"),
+            "location": get_distinct_values("location"),
             "process": get_distinct_values("process"),
             "brew_style": get_distinct_values("brew_style"),
         },
@@ -470,20 +722,48 @@ def altitude_view() -> Any:
     filters = build_filters_from_request(request.args)
     coffees = [
         dict(row)
-        for row in fetch_coffees(filters)
-        if row["latitude"] is not None and row["longitude"] is not None
+        for row in fetch_brews(filters)
+        if row["altitude_m"] is not None
     ]
     return render_template(
         "altitude.html",
         coffees=json.dumps(coffees),
         build_query=build_query,
         distinct_values={
+            "coffee_name": get_distinct_values("coffee_name"),
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
             "country": get_distinct_values("country"),
+            "location": get_distinct_values("location"),
             "process": get_distinct_values("process"),
             "brew_style": get_distinct_values("brew_style"),
         },
+    )
+
+
+@app.route("/bags")
+def bags_view() -> Any:
+    init_db()
+    bags = fetch_bag_summary()
+    return render_template("bags.html", bags=bags)
+
+
+@app.route("/bags/<int:bag_id>")
+def bag_detail(bag_id: int) -> Any:
+    init_db()
+    bag = fetch_bag_detail(bag_id)
+    if not bag:
+        flash("Bag not found.", "error")
+        return redirect(url_for("bags_view"))
+    brews = fetch_brews_for_bag(bag_id)
+    grind_insights = fetch_grind_insights(bag_id)
+    latest_brew_id = brews[0]["id"] if brews else None
+    return render_template(
+        "bag_detail.html",
+        bag=bag,
+        brews=brews,
+        grind_insights=grind_insights,
+        latest_brew_id=latest_brew_id,
     )
 
 
@@ -500,30 +780,49 @@ def stats_view() -> Any:
         "brew_styles": fetch_ranked_field("brew_style", filters),
         "countries": fetch_ranked_field("country", filters),
         "regions": fetch_ranked_regions(filters),
+        "coffee_names": fetch_ranked_field("coffee_name", filters),
+        "processes": fetch_ranked_field("process", filters),
     }
 
     where, params = filters
     conn = get_db()
-    total_count = conn.execute(f"SELECT COUNT(*) AS n FROM coffees{where}", params).fetchone()["n"]
-    altitude_where = combine_where(where, "altitude_m IS NOT NULL")
+    total_count = conn.execute(
+        f"""
+        SELECT COUNT(*) AS n
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
+        {where}
+        """,
+        params,
+    ).fetchone()["n"]
+    altitude_where = combine_where(where, "bags.altitude_m IS NOT NULL")
     altitude_rows = conn.execute(
-        f"SELECT altitude_m, rating FROM coffees{altitude_where}",
+        f"""
+        SELECT bags.altitude_m, brews.rating, bags.coffee_name, bags.brand
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
+        {altitude_where}
+        """,
         params,
     ).fetchall()
     highest_row = conn.execute(
         f"""
-        SELECT * FROM coffees
+        SELECT bags.coffee_name, bags.brand, bags.altitude_m
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
         {altitude_where}
-        ORDER BY altitude_m DESC
+        ORDER BY bags.altitude_m DESC
         LIMIT 1
         """,
         params,
     ).fetchone()
     lowest_row = conn.execute(
         f"""
-        SELECT * FROM coffees
+        SELECT bags.coffee_name, bags.brand, bags.altitude_m
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
         {altitude_where}
-        ORDER BY altitude_m ASC
+        ORDER BY bags.altitude_m ASC
         LIMIT 1
         """,
         params,
@@ -564,8 +863,17 @@ def stats_view() -> Any:
     selection_params = list(params)
     if dim and value:
         selection_title = ""
-        if dim in {"brand", "varietal", "brew_style", "country", "location", "process"}:
-            selection_where = combine_where(selection_where, f"{dim} = ?")
+        selection_map = {
+            "coffee_name": "bags.coffee_name",
+            "brand": "bags.brand",
+            "varietal": "bags.varietal",
+            "brew_style": "brews.brew_style",
+            "country": "bags.country",
+            "location": "bags.location",
+            "process": "bags.process",
+        }
+        if dim in selection_map:
+            selection_where = combine_where(selection_where, f"{selection_map[dim]} = ?")
             selection_params.append(value)
             selection_title = f"{dim.replace('_', ' ').title()}: {value}"
         elif dim == "region":
@@ -573,10 +881,10 @@ def stats_view() -> Any:
             country = parts[0] if parts else ""
             location = parts[1] if len(parts) > 1 else ""
             if country:
-                selection_where = combine_where(selection_where, "country = ?")
+                selection_where = combine_where(selection_where, "bags.country = ?")
                 selection_params.append(country)
             if location:
-                selection_where = combine_where(selection_where, "location = ?")
+                selection_where = combine_where(selection_where, "bags.location = ?")
                 selection_params.append(location)
             region_label = f"{country} · {location}".strip(" ·")
             if region_label:
@@ -586,19 +894,20 @@ def stats_view() -> Any:
             bin_item = bin_lookup.get(value)
             if bin_item:
                 selection_title = f"Altitude: {value}"
-                selection_where = combine_where(selection_where, "altitude_m IS NOT NULL")
-                selection_where = combine_where(selection_where, "altitude_m >= ?")
+                selection_where = combine_where(selection_where, "bags.altitude_m IS NOT NULL")
+                selection_where = combine_where(selection_where, "bags.altitude_m >= ?")
                 selection_params.append(bin_item["min"])
                 if bin_item["max"] is not None:
-                    selection_where = combine_where(selection_where, "altitude_m < ?")
+                    selection_where = combine_where(selection_where, "bags.altitude_m < ?")
                     selection_params.append(bin_item["max"])
 
         if selection_title:
             conn = get_db()
             summary = conn.execute(
                 f"""
-                SELECT AVG(rating) AS avg_rating, COUNT(*) AS n
-                FROM coffees
+                SELECT AVG(brews.rating) AS avg_rating, COUNT(*) AS n
+                FROM brews
+                JOIN bags ON bags.id = brews.bag_id
                 {selection_where}
                 """,
                 selection_params,
@@ -609,7 +918,7 @@ def stats_view() -> Any:
                 "avg_rating": summary["avg_rating"],
                 "n": summary["n"],
             }
-            selection_coffees = fetch_coffees((selection_where, selection_params))
+            selection_coffees = fetch_brews((selection_where, selection_params))
 
     return render_template(
         "stats.html",
@@ -639,29 +948,47 @@ def suggest() -> Any:
     field = request.args.get("field", "")
     term = request.args.get("term", "").strip().lower()
     if field not in {
+        "coffee_name",
         "brand",
         "varietal",
         "country",
         "location",
         "process",
         "flavours",
+        "brew_style",
+        "grinder",
+        "grind_setting",
     }:
         return jsonify([])
+    field_map = {
+        "coffee_name": "bags.coffee_name",
+        "brand": "bags.brand",
+        "varietal": "bags.varietal",
+        "country": "bags.country",
+        "location": "bags.location",
+        "process": "bags.process",
+        "flavours": "brews.flavours",
+        "brew_style": "brews.brew_style",
+        "grinder": "brews.grinder",
+        "grind_setting": "brews.grind_setting",
+    }
+    column = field_map[field]
     conn = get_db()
     rows = conn.execute(
         f"""
-        SELECT DISTINCT {field}
-        FROM coffees
-        WHERE {field} IS NOT NULL
-          AND {field} != ''
-          AND LOWER({field}) LIKE ?
-        ORDER BY {field}
+        SELECT DISTINCT {column} AS value
+        FROM brews
+        JOIN bags ON bags.id = brews.bag_id
+        WHERE {column} IS NOT NULL
+          AND {column} != ''
+          AND LOWER({column}) LIKE ?
+        ORDER BY {column}
         LIMIT 8
         """,
         (f"%{term}%",),
     ).fetchall()
     conn.close()
-    return jsonify([row[field] for row in rows])
+    return jsonify([row["value"] for row in rows])
 
 
 @app.route("/api/parse_maps_link", methods=["POST"])
@@ -820,8 +1147,8 @@ def seed_route() -> Any:
 
     init_db()
     inserted = seed_data(get_db())
-    flash(f"Seeded {inserted} coffees.", "success")
-    return redirect(url_for("log"))
+    flash(f"Seeded {inserted} brews.", "success")
+    return redirect(url_for("bags_view"))
 
 
 if __name__ == "__main__":

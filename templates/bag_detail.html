@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>{{ bag.coffee_name }}</h1>
+    <p>{{ bag.brand }}{% if bag.varietal %} · {{ bag.varietal }}{% endif %}</p>
+  </div>
+  <a class="primary" href="{{ url_for('add_coffee') }}?bag_id={{ bag.id }}">Add new brew</a>
+</section>
+
+<section class="card bag-summary">
+  <div class="bag-summary-info">
+    <div class="detail-row">
+      <span class="detail-label">Process</span>
+      <span class="detail-value">{{ bag.process or "—" }}</span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Origin</span>
+      <span class="detail-value">
+        {% if bag.country %}{{ bag.country|flag_country }}{% endif %}
+        {% if bag.location %} · {{ bag.location }}{% endif %}
+      </span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Altitude</span>
+      <span class="detail-value">
+        {% if bag.altitude_m %}{{ bag.altitude_m }} m{% else %}—{% endif %}
+      </span>
+    </div>
+  </div>
+  {% if bag.latitude and bag.longitude %}
+    <div
+      class="origin-map"
+      role="button"
+      tabindex="0"
+      aria-label="View coffee on map"
+      data-lat="{{ bag.latitude|format_latlon }}"
+      data-lon="{{ bag.longitude|format_latlon }}"
+      data-id="{{ latest_brew_id }}"
+      data-rating="{{ brews[0].rating if brews else 3 }}"
+    ></div>
+  {% endif %}
+</section>
+
+{% if grind_insights %}
+  <section class="card grind-insights">
+    <div class="section-header">
+      <h3>Grind insights</h3>
+      <p>Average rating by grind setting.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in grind_insights %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <span class="ranked-name">
+            {{ item.grinder }} · {{ item.grind_setting|format_grind(item.grinder) }}
+          </span>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<section class="card brew-list">
+  <div class="section-header">
+    <h3>Brew attempts</h3>
+    <p>Newest first. Track each change.</p>
+  </div>
+  <div class="stats-detail-list">
+    {% for brew in brews %}
+      <article class="stats-entry">
+        <div>
+          <h3>{{ brew.date }}</h3>
+          <p class="stats-entry-meta">
+            {{ brew.brew_style }} · {{ brew.grinder }} · {{ brew.grind_setting|format_grind(brew.grinder) }}
+            · Rating {{ brew.rating }} / 5
+          </p>
+          {% if brew.notes %}
+            <p class="stats-entry-date">{{ brew.notes }}</p>
+          {% endif %}
+        </div>
+        <div class="stats-entry-actions">
+          <a class="secondary" href="{{ url_for('log') }}?entry_id={{ brew.id }}">View entry</a>
+          <a class="secondary" href="{{ url_for('map_view') }}?entry_id={{ brew.id }}">View on map</a>
+        </div>
+      </article>
+    {% else %}
+      <p class="empty">No brews yet for this bag.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
