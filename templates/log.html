@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Coffee log</h1>
+    <p>Browse your latest pours and flavour memories.</p>
+  </div>
+</section>
+
+<div class="filter-bar">
+  {% include "partials/_filters.html" %}
+</div>
+
+<section class="cards">
+  {% for coffee in coffees %}
+    {% set is_target = entry_id and coffee.id|string == entry_id %}
+    <article class="card coffee-card{% if is_target %} highlight{% endif %}{% if coffee.latitude and coffee.longitude %} has-map{% endif %}" id="entry-{{ coffee.id }}">
+      <div class="card-header">
+        <div>
+          <h2>{{ coffee.brand or "Unknown roaster" }}</h2>
+        </div>
+        <span class="rating">{{ coffee.rating }}/5</span>
+      </div>
+      <div class="card-body">
+        <div class="card-content">
+          <div class="card-details">
+            <div class="detail-grid">
+              <div class="detail-row">
+                <span class="detail-label">Location</span>
+                <span class="detail-value">
+                  {% if coffee.country %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, country=coffee.country, entry_id='') }}">
+                      {{ coffee.country|flag_country }}
+                    </a>
+                  {% endif %}
+                  {% if coffee.location %}
+                    {% if coffee.country %}, {% endif %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, location=coffee.location, entry_id='') }}">
+                      {{ coffee.location }}
+                    </a>
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Varietal</span>
+                <span class="detail-value">
+                  {% if coffee.varietal %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, varietal=coffee.varietal, entry_id='') }}">
+                      {{ coffee.varietal }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Process</span>
+                <span class="detail-value">
+                  {% if coffee.process %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, process=coffee.process, entry_id='') }}">
+                      {{ coffee.process }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Flavours</span>
+                <span class="detail-value">{{ coffee.flavours or "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Brew method</span>
+                <span class="detail-value">
+                  {% if coffee.brew_style %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, brew_style=coffee.brew_style, entry_id='') }}">
+                      {{ coffee.brew_style }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Grinder</span>
+                <span class="detail-value">
+                  {% if coffee.grinder %}
+                    {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting }}{% endif %}
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Brand</span>
+                <span class="detail-value">
+                  {% if coffee.brand %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">
+                      {{ coffee.brand }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Rating</span>
+                <span class="detail-value">
+                  Rating: {{ coffee.rating }} / 5
+                  <span class="rating-bar">
+                    <span class="rating-fill" style="width: {{ (coffee.rating / 5 * 100) | round(0) }}%"></span>
+                  </span>
+                </span>
+              </div>
+              {% if coffee.altitude_m %}
+                {% set position = coffee.altitude_m / 2500 * 100 %}
+                <div class="detail-row detail-altitude">
+                  <span class="detail-label">Altitude</span>
+                  <span class="detail-value">
+                    <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
+                    <span class="meter">
+                      <span class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></span>
+                    </span>
+                  </span>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          {% if coffee.latitude and coffee.longitude %}
+            <div
+              class="origin-map"
+              role="button"
+              tabindex="0"
+              aria-label="View coffee on map"
+              data-lat="{{ coffee.latitude|format_latlon }}"
+              data-lon="{{ coffee.longitude|format_latlon }}"
+              data-id="{{ coffee.id }}"
+              data-rating="{{ coffee.rating }}"
+            ></div>
+          {% endif %}
+        </div>
+      </div>
+      <div class="card-footer">
+        <span>{{ coffee.date }}</span>
+      </div>
+    </article>
+  {% else %}
+    <p class="empty">No coffees yet. Add your first one!</p>
+  {% endfor %}
+</section>
+
+{% if entry_id %}
+  <div class="entry-clear">
+    <a href="{{ url_for('log') }}?{{ build_query(request.args, entry_id='') }}">Clear filter</a>
+  </div>
+{% endif %}
+
+<form method="post" action="{{ url_for('seed_route') }}" class="seed">
+  <button type="submit" class="secondary">Seed demo data</button>
+  <p>For demo only — this will add ~60 sample coffees.</p>
+</form>
+
+{% if entry_id %}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const target = document.getElementById("entry-{{ entry_id }}");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  </script>
+{% endif %}
+{% endblock %}
