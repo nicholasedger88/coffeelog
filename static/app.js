@@ -36,7 +36,8 @@ const setupAutocomplete = () => {
     };
 
     const fetchSuggestions = debounce(async () => {
-      const term = input.value.trim();
+      const rawValue = input.value.trim();
+      const term = field === "flavours" ? rawValue.split(",").pop().trim() : rawValue;
       if (!term) {
         hide();
         return;
@@ -53,7 +54,16 @@ const setupAutocomplete = () => {
         button.type = "button";
         button.textContent = suggestion;
         button.addEventListener("click", () => {
-          input.value = suggestion;
+          if (field === "flavours") {
+            const parts = input.value.split(",");
+            parts[parts.length - 1] = ` ${suggestion}`;
+            const cleaned = parts
+              .map((part) => part.trim())
+              .filter((part) => part.length);
+            input.value = cleaned.join(", ");
+          } else {
+            input.value = suggestion;
+          }
           hide();
         });
         dropdown.appendChild(button);
@@ -319,6 +329,64 @@ const setupAddMap = () => {
       }
     });
   }
+
+  const searchInput = document.getElementById("location-search");
+  const searchButton = document.getElementById("location-search-btn");
+  const searchResults = document.getElementById("search-results");
+  if (searchButton && searchInput && searchResults) {
+    const renderResults = (results) => {
+      searchResults.innerHTML = "";
+      if (!results.length) {
+        searchResults.textContent = "No matches found.";
+        return;
+      }
+      results.forEach((result) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "search-result";
+        button.textContent = result.display_name;
+        button.addEventListener("click", async () => {
+          clickToken += 1;
+          userTouchedCountry = false;
+          userTouchedLocation = false;
+          userTouchedAltitude = false;
+          latInput.value = result.lat.toFixed(5);
+          lonInput.value = result.lon.toFixed(5);
+          setMarker(result.lat, result.lon);
+          map.setView([result.lat, result.lon], 7);
+          try {
+            showLoading("Finding location…");
+            await fetchReverseGeocode(result.lat.toFixed(5), result.lon.toFixed(5));
+            showLoading("Fetching altitude…");
+            await fetchElevation(result.lat.toFixed(5), result.lon.toFixed(5));
+          } finally {
+            hideLoading();
+          }
+        });
+        searchResults.appendChild(button);
+      });
+    };
+
+    searchButton.addEventListener("click", async () => {
+      const query = searchInput.value.trim();
+      if (!query) return;
+      searchResults.textContent = "Searching…";
+      showLoading("Searching location…");
+      try {
+        const response = await fetch(`/api/geocode_search?q=${encodeURIComponent(query)}`);
+        const result = await response.json();
+        if (result.ok) {
+          renderResults(result.results || []);
+        } else {
+          searchResults.textContent = result.error || "Search failed.";
+        }
+      } catch (error) {
+        searchResults.textContent = "Search failed.";
+      } finally {
+        hideLoading();
+      }
+    });
+  }
 };
 
 const setupMapView = () => {
@@ -540,6 +608,114 @@ const setupAltitudeChart = () => {
   chartEl.dataset.ready = "true";
 };
 
+const setupEquatorChart = () => {
+  const chartEl = document.getElementById("equator-chart");
+  if (!chartEl || !window.equatorData || !window.Chart) return;
+
+  const ratingColors = {
+    5: "rgba(29, 78, 216, 0.7)",
+    4: "rgba(59, 130, 246, 0.7)",
+    3: "rgba(148, 163, 184, 0.6)",
+    2: "rgba(252, 165, 165, 0.6)",
+    1: "rgba(239, 68, 68, 0.7)",
+  };
+
+  const points = window.equatorData.map((bag) => {
+    const rating = Math.round(bag.avg_rating || 3);
+    return {
+      x: bag.longitude,
+      y: bag.latitude,
+      id: bag.id,
+      coffee_name: bag.coffee_name,
+      brand: bag.brand,
+      country: bag.country,
+      location: bag.location,
+      continent: bag.continent,
+      avg_rating: bag.avg_rating,
+      color: ratingColors[rating] || ratingColors[3],
+    };
+  });
+
+  const chart = new Chart(chartEl, {
+    type: "scatter",
+    data: {
+      datasets: [
+        {
+          type: "line",
+          data: [
+            { x: -180, y: 0 },
+            { x: 180, y: 0 },
+          ],
+          borderColor: "rgba(16, 24, 40, 0.2)",
+          borderWidth: 1,
+          pointRadius: 0,
+        },
+        {
+          data: points,
+          pointRadius: 3,
+          pointHoverRadius: 4,
+          pointBackgroundColor: (ctx) => ctx.raw?.color || "rgba(148, 163, 184, 0.6)",
+          pointBorderColor: "rgba(16, 24, 40, 0.15)",
+        },
+      ],
+    },
+    options: {
+      animation: false,
+      scales: {
+        x: {
+          min: -180,
+          max: 180,
+          title: {
+            display: true,
+            text: "Longitude",
+          },
+          grid: {
+            color: "rgba(16, 24, 40, 0.06)",
+          },
+        },
+        y: {
+          min: -90,
+          max: 90,
+          title: {
+            display: true,
+            text: "Latitude",
+          },
+          grid: {
+            color: "rgba(16, 24, 40, 0.06)",
+          },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const raw = ctx.raw || {};
+              const location = [raw.country, raw.location].filter(Boolean).join(", ");
+              return [
+                `${raw.coffee_name || "Untitled bag"}`,
+                `${raw.brand || "Unknown roaster"}`,
+                location,
+                `Lat: ${raw.y?.toFixed(2)} · Lon: ${raw.x?.toFixed(2)}`,
+                `Continent: ${raw.continent || "Unknown"}`,
+              ].filter(Boolean);
+            },
+          },
+        },
+      },
+      onClick: (_event, elements) => {
+        if (!elements.length) return;
+        const raw = elements[0].element.$context.raw;
+        if (raw?.id) {
+          window.location.href = `/bags/${raw.id}`;
+        }
+      },
+    },
+  });
+
+  chartEl.dataset.ready = "true";
+};
+
 const setupOriginMaps = () => {
   const originMaps = document.querySelectorAll(".origin-map");
   if (!originMaps.length) return;
@@ -682,5 +858,6 @@ document.addEventListener("DOMContentLoaded", () => {
   setupAddMap();
   setupMapView();
   setupAltitudeChart();
+  setupEquatorChart();
   setupOriginMaps();
 });

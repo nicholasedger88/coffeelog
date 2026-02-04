@@ -16,11 +16,26 @@
       <span class="detail-value">{{ bag.process or "—" }}</span>
     </div>
     <div class="detail-row">
+      <span class="detail-label">Flavours</span>
+      <span class="detail-value">
+        {% if bag.flavours %}
+          {{ bag.flavours }}
+        {% endif %}
+        <a class="value-link" href="#" id="add-flavours-link">
+          {% if bag.flavours %}Edit flavours{% else %}Add flavours{% endif %}
+        </a>
+      </span>
+    </div>
+    <div class="detail-row">
       <span class="detail-label">Origin</span>
       <span class="detail-value">
         {% if bag.country %}{{ bag.country|flag_country }}{% endif %}
         {% if bag.location %} · {{ bag.location }}{% endif %}
       </span>
+    </div>
+    <div class="detail-row">
+      <span class="detail-label">Continent</span>
+      <span class="detail-value">{{ bag.continent or "Unknown" }}</span>
     </div>
     <div class="detail-row">
       <span class="detail-label">Altitude</span>
@@ -29,6 +44,9 @@
       </span>
     </div>
   </div>
+  {% if bag.photo_path %}
+    <img class="bag-photo" src="{{ url_for('static', filename=bag.photo_path) }}" alt="Bag photo" />
+  {% endif %}
   {% if bag.latitude and bag.longitude %}
     <div
       class="origin-map"
@@ -42,6 +60,26 @@
     ></div>
   {% endif %}
 </section>
+
+<form
+  method="post"
+  action="{{ url_for('update_bag_flavours', bag_id=bag.id) }}"
+  class="card bag-flavours-form"
+  id="bag-flavours-form"
+>
+  <div class="section-header">
+    <h3>Update flavours</h3>
+    <p>Add or refine the tasting notes for this bag.</p>
+  </div>
+  <label class="autocomplete" data-field="flavours">
+    Flavours
+    <input type="text" name="flavours" value="{{ bag.flavours or '' }}" autocomplete="off" />
+    <div class="suggestions"></div>
+  </label>
+  <div class="form-actions">
+    <button type="submit" class="primary">Save flavours</button>
+  </div>
+</form>
 
 {% if grind_insights %}
   <section class="card grind-insights">
@@ -86,8 +124,8 @@
           {% endif %}
         </div>
         <div class="stats-entry-actions">
-          <a class="secondary" href="{{ url_for('log') }}?entry_id={{ brew.id }}">View entry</a>
-          <a class="secondary" href="{{ url_for('map_view') }}?entry_id={{ brew.id }}">View on map</a>
+          <a class="action-link" href="{{ url_for('log') }}?entry_id={{ brew.id }}">View entry</a>
+          <a class="action-link" href="{{ url_for('map_view') }}?entry_id={{ brew.id }}">View on map</a>
         </div>
       </article>
     {% else %}
@@ -95,4 +133,24 @@
     {% endfor %}
   </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const link = document.getElementById("add-flavours-link");
+      const form = document.getElementById("bag-flavours-form");
+      if (form) {
+        form.style.display = "none";
+      }
+      if (link && form) {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          form.style.display = "block";
+          form.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+      }
+    });
+  </script>
 {% endblock %}

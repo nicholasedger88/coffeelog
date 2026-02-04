@@ -9,6 +9,7 @@ from app import (
     ALLOWED_GRINDERS,
     AERGRIND_SETTINGS,
     BELINDA_SETTINGS,
+    continent_from_latlon,
     init_db,
 )
 
@@ -69,23 +70,28 @@ def seed_data(conn: sqlite3.Connection) -> int:
         brand = random.choice(BRANDS)
         varietal = random.choice(VARIETALS)
         altitude = random.randint(1200, 2200)
+        flavours = random.choice(FLAVOURS)
+        continent = continent_from_latlon(lat, lon)
         cursor.execute(
             """
             INSERT INTO bags (
-                coffee_name, brand, varietal, country, location, process,
-                latitude, longitude, altitude_m, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                coffee_name, brand, varietal, flavours, country, location, process,
+                latitude, longitude, altitude_m, continent, photo_path, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 coffee_name,
                 brand,
                 varietal,
+                flavours,
                 country,
                 location,
                 random.choice(PROCESSES),
                 lat + random.uniform(-0.3, 0.3),
                 lon + random.uniform(-0.3, 0.3),
                 altitude,
+                continent,
+                None,
                 now.isoformat(timespec="seconds"),
             ),
         )
@@ -103,14 +109,13 @@ def seed_data(conn: sqlite3.Connection) -> int:
             cursor.execute(
                 """
                 INSERT INTO brews (
-                    bag_id, date, flavours, rating, brew_style, grinder,
+                    bag_id, date, rating, brew_style, grinder,
                     grind_setting, notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     bag_id,
                     date_value,
-                    random.choice(FLAVOURS),
                     random.randint(2, 5),
                     random.choice(ALLOWED_BREW_STYLES),
                     grinder,

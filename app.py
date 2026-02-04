@@ -12,6 +12,7 @@ import pycountry
 import requests
 import reverse_geocoder as rg
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from PIL import Image
 
 BASE_DIR = Path(__file__).resolve().parent
 DATABASE = BASE_DIR / "coffeelog.db"
@@ -113,6 +114,26 @@ def combine_where(base: str, clause: str) -> str:
     return f" WHERE {clause}"
 
 
+def continent_from_latlon(lat: float | None, lon: float | None) -> str:
+    if lat is None or lon is None:
+        return "Unknown"
+    if lat <= -60:
+        return "Antarctica"
+    if -35 <= lat <= 37 and -20 <= lon <= 52:
+        return "Africa"
+    if 35 <= lat <= 71 and -25 <= lon <= 40:
+        return "Europe"
+    if 5 <= lat <= 77 and 40 <= lon <= 150:
+        return "Asia"
+    if 7 <= lat <= 72 and -170 <= lon <= -50:
+        return "North America"
+    if -56 <= lat <= 13 and -82 <= lon <= -34:
+        return "South America"
+    if -50 <= lat <= 10 and 110 <= lon <= 180:
+        return "Oceania"
+    return "Unknown"
+
+
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS coffees (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -138,12 +159,15 @@ CREATE TABLE IF NOT EXISTS bags (
     coffee_name TEXT NOT NULL,
     brand TEXT NOT NULL,
     varietal TEXT,
+    flavours TEXT,
     country TEXT,
     location TEXT,
     process TEXT,
     latitude REAL,
     longitude REAL,
     altitude_m INTEGER,
+    continent TEXT,
+    photo_path TEXT,
     created_at TEXT NOT NULL
 );
 
@@ -151,7 +175,6 @@ CREATE TABLE IF NOT EXISTS brews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     bag_id INTEGER NOT NULL,
     date TEXT NOT NULL,
-    flavours TEXT,
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
     brew_style TEXT NOT NULL,
     grinder TEXT NOT NULL,
@@ -179,6 +202,18 @@ def init_db() -> None:
 def normalize_flavours(raw: str) -> str:
     parts = [part.strip() for part in raw.split(",") if part.strip()]
     return ", ".join(parts)
+
+
+def extract_flavour_tokens(raw_values: list[str]) -> list[str]:
+    tokens: dict[str, str] = {}
+    for raw in raw_values:
+        for part in raw.split(","):
+            token = part.strip()
+            if not token:
+                continue
+            key = token.lower()
+            tokens.setdefault(key, token)
+    return sorted(tokens.values(), key=lambda value: value.lower())
 
 
 def parse_aergrind_setting(value: str) -> tuple[int, int] | None:
@@ -239,6 +274,7 @@ def validate_bag_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str
     data["longitude"] = round(longitude, 5) if longitude is not None else None
 
     data["varietal"] = form.get("varietal", "").strip()
+    data["flavours"] = normalize_flavours(form.get("flavours", ""))
     data["country"] = form.get("country", "").strip()
     data["location"] = form.get("location", "").strip()
     data["process"] = form.get("process", "").strip()
@@ -286,7 +322,6 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
         errors.append("Choose a valid Belinda setting.")
     data["grind_setting"] = grind_setting
 
-    data["flavours"] = normalize_flavours(form.get("flavours", ""))
     data["notes"] = form.get("notes", "").strip()
 
     return data, errors
@@ -297,6 +332,7 @@ def get_distinct_values(field: str) -> list[str]:
         "coffee_name": "bags.coffee_name",
         "brand": "bags.brand",
         "varietal": "bags.varietal",
+        "continent": "bags.continent",
         "country": "bags.country",
         "location": "bags.location",
         "process": "bags.process",
@@ -305,7 +341,7 @@ def get_distinct_values(field: str) -> list[str]:
         "brew_style": "brews.brew_style",
         "grinder": "brews.grinder",
         "grind_setting": "brews.grind_setting",
-        "flavours": "brews.flavours",
+        "flavours": "bags.flavours",
     }
     field_expr = bag_fields.get(field) or brew_fields.get(field)
     if not field_expr:
@@ -339,6 +375,7 @@ def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
         "coffee_name": "bags.coffee_name",
         "brand": "bags.brand",
         "varietal": "bags.varietal",
+        "continent": "bags.continent",
         "country": "bags.country",
         "location": "bags.location",
         "process": "bags.process",
@@ -368,6 +405,28 @@ def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
     return where, params
 
 
+def build_bag_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    for field, column in {
+        "coffee_name": "bags.coffee_name",
+        "brand": "bags.brand",
+        "varietal": "bags.varietal",
+        "continent": "bags.continent",
+        "country": "bags.country",
+        "location": "bags.location",
+        "process": "bags.process",
+    }.items():
+        value = args.get(field)
+        if value:
+            clauses.append(f"{column} = ?")
+            params.append(value)
+    where = ""
+    if clauses:
+        where = " WHERE " + " AND ".join(clauses)
+    return where, params
+
+
 def fetch_brews(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
     where, params = filters
     conn = get_db()
@@ -378,12 +437,15 @@ def fetch_brews(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
             bags.coffee_name,
             bags.brand,
             bags.varietal,
+            bags.flavours,
             bags.country,
             bags.location,
             bags.process,
             bags.latitude,
             bags.longitude,
-            bags.altitude_m
+            bags.altitude_m,
+            bags.continent,
+            bags.photo_path
         FROM brews
         JOIN bags ON bags.id = brews.bag_id
         {where}
@@ -403,6 +465,7 @@ def fetch_ranked_field(
         "brand": "bags.brand",
         "varietal": "bags.varietal",
         "brew_style": "brews.brew_style",
+        "continent": "bags.continent",
         "country": "bags.country",
         "location": "bags.location",
         "process": "bags.process",
@@ -560,6 +623,54 @@ def fetch_grind_insights(bag_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def fetch_bags_for_equator(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
+    where, params = filters
+    conn = get_db()
+    rows = conn.execute(
+        f"""
+        SELECT
+            bags.id,
+            bags.coffee_name,
+            bags.brand,
+            bags.country,
+            bags.location,
+            bags.latitude,
+            bags.longitude,
+            bags.continent,
+            AVG(brews.rating) AS avg_rating
+        FROM bags
+        LEFT JOIN brews ON brews.bag_id = bags.id
+        {where}
+        GROUP BY bags.id
+        ORDER BY bags.created_at DESC
+        """
+        ,
+        params,
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def save_bag_photo(bag_id: int, photo_file: Any) -> str | None:
+    if not photo_file or not photo_file.filename:
+        return None
+    allowed_types = {"image/jpeg", "image/png"}
+    if photo_file.mimetype not in allowed_types:
+        return None
+    try:
+        image = Image.open(photo_file)
+    except (OSError, ValueError):
+        return None
+    image = image.convert("RGB")
+    image.thumbnail((800, 800))
+    uploads_dir = BASE_DIR / "static" / "uploads" / "bags"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"bag-{bag_id}.webp"
+    output_path = uploads_dir / filename
+    image.save(output_path, format="WEBP", quality=75)
+    return f"uploads/bags/{filename}"
+
+
 @app.route("/")
 def index() -> Any:
     return redirect(url_for("add_coffee"))
@@ -587,39 +698,49 @@ def add_coffee() -> Any:
         else:
             conn = get_db()
             if creating_new or not bag_id:
+                continent = continent_from_latlon(bag_data["latitude"], bag_data["longitude"])
                 cursor = conn.execute(
                     """
                     INSERT INTO bags (
-                        coffee_name, brand, varietal, country, location, process,
-                        latitude, longitude, altitude_m, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        coffee_name, brand, varietal, flavours, country, location, process,
+                        latitude, longitude, altitude_m, continent, photo_path, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         bag_data["coffee_name"],
                         bag_data["brand"],
                         bag_data["varietal"],
+                        bag_data["flavours"],
                         bag_data["country"],
                         bag_data["location"],
                         bag_data["process"],
                         bag_data["latitude"],
                         bag_data["longitude"],
                         bag_data["altitude_m"],
+                        continent,
+                        None,
                         datetime.utcnow().isoformat(timespec="seconds"),
                     ),
                 )
                 bag_id = cursor.lastrowid
+                photo = request.files.get("bag_photo")
+                photo_path = save_bag_photo(bag_id, photo)
+                if photo_path:
+                    conn.execute(
+                        "UPDATE bags SET photo_path = ? WHERE id = ?",
+                        (photo_path, bag_id),
+                    )
 
             conn.execute(
                 """
                 INSERT INTO brews (
-                    bag_id, date, flavours, rating, brew_style, grinder,
+                    bag_id, date, rating, brew_style, grinder,
                     grind_setting, notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     bag_id,
                     brew_data["date"],
-                    brew_data["flavours"],
                     brew_data["rating"],
                     brew_data["brew_style"],
                     brew_data["grinder"],
@@ -662,6 +783,7 @@ def log() -> Any:
             "coffee_name": get_distinct_values("coffee_name"),
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
+            "continent": get_distinct_values("continent"),
             "country": get_distinct_values("country"),
             "location": get_distinct_values("location"),
             "process": get_distinct_values("process"),
@@ -708,6 +830,7 @@ def map_view() -> Any:
             "coffee_name": get_distinct_values("coffee_name"),
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
+            "continent": get_distinct_values("continent"),
             "country": get_distinct_values("country"),
             "location": get_distinct_values("location"),
             "process": get_distinct_values("process"),
@@ -733,10 +856,36 @@ def altitude_view() -> Any:
             "coffee_name": get_distinct_values("coffee_name"),
             "brand": get_distinct_values("brand"),
             "varietal": get_distinct_values("varietal"),
+            "continent": get_distinct_values("continent"),
             "country": get_distinct_values("country"),
             "location": get_distinct_values("location"),
             "process": get_distinct_values("process"),
             "brew_style": get_distinct_values("brew_style"),
+        },
+    )
+
+
+@app.route("/equator")
+def equator_view() -> Any:
+    init_db()
+    filters = build_bag_filters_from_request(request.args)
+    bags = [
+        dict(row)
+        for row in fetch_bags_for_equator(filters)
+        if row["latitude"] is not None and row["longitude"] is not None
+    ]
+    return render_template(
+        "equator.html",
+        bags=json.dumps(bags),
+        build_query=build_query,
+        distinct_values={
+            "coffee_name": get_distinct_values("coffee_name"),
+            "brand": get_distinct_values("brand"),
+            "varietal": get_distinct_values("varietal"),
+            "continent": get_distinct_values("continent"),
+            "country": get_distinct_values("country"),
+            "location": get_distinct_values("location"),
+            "process": get_distinct_values("process"),
         },
     )
 
@@ -767,6 +916,21 @@ def bag_detail(bag_id: int) -> Any:
     )
 
 
+@app.route("/bags/<int:bag_id>/flavours", methods=["POST"])
+def update_bag_flavours(bag_id: int) -> Any:
+    init_db()
+    flavours = normalize_flavours(request.form.get("flavours", ""))
+    conn = get_db()
+    conn.execute(
+        "UPDATE bags SET flavours = ? WHERE id = ?",
+        (flavours, bag_id),
+    )
+    conn.commit()
+    conn.close()
+    flash("Bag flavours updated.", "success")
+    return redirect(url_for("bag_detail", bag_id=bag_id))
+
+
 @app.route("/stats")
 def stats_view() -> Any:
     init_db()
@@ -778,6 +942,7 @@ def stats_view() -> Any:
         "brands": fetch_ranked_field("brand", filters),
         "varietals": fetch_ranked_field("varietal", filters),
         "brew_styles": fetch_ranked_field("brew_style", filters),
+        "continents": fetch_ranked_field("continent", filters),
         "countries": fetch_ranked_field("country", filters),
         "regions": fetch_ranked_regions(filters),
         "coffee_names": fetch_ranked_field("coffee_name", filters),
@@ -868,6 +1033,7 @@ def stats_view() -> Any:
             "brand": "bags.brand",
             "varietal": "bags.varietal",
             "brew_style": "brews.brew_style",
+            "continent": "bags.continent",
             "country": "bags.country",
             "location": "bags.location",
             "process": "bags.process",
@@ -940,6 +1106,7 @@ def stats_view() -> Any:
         selection=selection,
         selection_coffees=selection_coffees,
         build_query=build_query,
+        continents=get_distinct_values("continent"),
     )
 
 
@@ -967,12 +1134,26 @@ def suggest() -> Any:
         "country": "bags.country",
         "location": "bags.location",
         "process": "bags.process",
-        "flavours": "brews.flavours",
+        "flavours": "bags.flavours",
         "brew_style": "brews.brew_style",
         "grinder": "brews.grinder",
         "grind_setting": "brews.grind_setting",
     }
     column = field_map[field]
+    if field == "flavours":
+        conn = get_db()
+        rows = conn.execute(
+            """
+            SELECT DISTINCT bags.flavours AS value
+            FROM bags
+            WHERE bags.flavours IS NOT NULL AND bags.flavours != ''
+            """
+        ).fetchall()
+        conn.close()
+        tokens = extract_flavour_tokens([row["value"] for row in rows])
+        if term:
+            tokens = [token for token in tokens if token.lower().startswith(term)]
+        return jsonify(tokens[:8])
     conn = get_db()
     rows = conn.execute(
         f"""
@@ -1008,6 +1189,37 @@ def parse_maps_link() -> Any:
                 return jsonify({"ok": True, "lat": lat, "lon": lon})
             return jsonify({"ok": False, "error": "Coordinates out of range."})
     return jsonify({"ok": False, "error": "Unable to parse coordinates from the link."})
+
+
+@app.route("/api/geocode_search")
+def geocode_search() -> Any:
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"ok": False, "error": "Missing query."})
+    try:
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"format": "jsonv2", "q": query, "limit": 5},
+            headers={
+                "User-Agent": "CoffeeLog/1.0 (coffeelog@example.com)",
+                "Accept": "application/json",
+            },
+            timeout=6,
+        )
+        response.raise_for_status()
+        results = response.json()
+        candidates = [
+            {
+                "display_name": result.get("display_name"),
+                "lat": float(result["lat"]),
+                "lon": float(result["lon"]),
+            }
+            for result in results
+            if result.get("lat") and result.get("lon")
+        ]
+        return jsonify({"ok": True, "results": candidates})
+    except (requests.RequestException, ValueError, TypeError):
+        return jsonify({"ok": False, "error": "Location search failed."})
 
 
 @app.route("/api/elevation")

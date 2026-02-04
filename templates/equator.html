@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Equator</h1>
+    <p>Latitudes and longitudes of your bags around the equator line.</p>
+  </div>
+</section>
+
+<form class="filters stats-filters" method="get">
+  <div class="filter-grid">
+    <label>
+      Brand
+      <select name="brand">
+        <option value="">All</option>
+        {% for value in distinct_values.brand %}
+          <option value="{{ value }}" {% if request.args.get('brand') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Varietal
+      <select name="varietal">
+        <option value="">All</option>
+        {% for value in distinct_values.varietal %}
+          <option value="{{ value }}" {% if request.args.get('varietal') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Continent
+      <select name="continent">
+        <option value="">All</option>
+        {% for value in distinct_values.continent %}
+          <option value="{{ value }}" {% if request.args.get('continent') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Country
+      <select name="country">
+        <option value="">All</option>
+        {% for value in distinct_values.country %}
+          <option value="{{ value }}" {% if request.args.get('country') == value %}selected{% endif %}>{{ value|flag_country }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="primary">Apply filters</button>
+    <a href="{{ url_for('equator_view') }}" class="secondary">Reset</a>
+  </div>
+</form>
+
+<section class="card chart-card">
+  {% if bags|length == 0 %}
+    <p class="chart-empty">No bag coordinates yet.</p>
+  {% else %}
+    <div class="chart-wrap">
+      <canvas id="equator-chart"></canvas>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+  window.equatorData = {{ bags|safe }};
+</script>
+{% endblock %}

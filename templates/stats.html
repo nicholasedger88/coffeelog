@@ -35,6 +35,15 @@
         {% endfor %}
       </select>
     </label>
+    <label>
+      Continent
+      <select name="continent">
+        <option value="">All</option>
+        {% for value in continents %}
+          <option value="{{ value }}" {% if request.args.get('continent') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
   </div>
   <div class="filter-actions">
     <button type="submit" class="primary">Apply filters</button>
@@ -167,6 +176,33 @@
         </div>
       {% else %}
         <p class="empty">No brew styles yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best continents</h2>
+      <p>Continents with the top averages.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.continents %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='continent', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No continents yet.</p>
       {% endfor %}
     </div>
   </section>

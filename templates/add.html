@@ -9,7 +9,7 @@
 </section>
 
 <section class="card form-card">
-  <form method="post" class="coffee-form">
+  <form method="post" class="coffee-form" enctype="multipart/form-data">
     <div class="form-section">
       <div class="section-header">
         <h3>Select bag</h3>
@@ -69,6 +69,15 @@
           <input type="text" name="process" autocomplete="off" placeholder="washed" />
           <div class="suggestions"></div>
         </label>
+        <label class="autocomplete" data-field="flavours">
+          Flavours
+          <input type="text" name="flavours" placeholder="strawberry, jasmine" autocomplete="off" />
+          <div class="suggestions"></div>
+        </label>
+        <label>
+          Bag photo (optional)
+          <input type="file" name="bag_photo" accept="image/png,image/jpeg" />
+        </label>
       </div>
       <div class="map-panel">
         <div class="map-header">
@@ -78,6 +87,14 @@
             <span id="geocode-status" class="helper"></span>
           </div>
         </div>
+        <div class="map-search">
+          <label>
+            Search location (estate/farm/region)
+            <input type="text" id="location-search" placeholder="Esmeralda Estate" />
+          </label>
+          <button type="button" class="secondary" id="location-search-btn">Go</button>
+        </div>
+        <div id="search-results" class="search-results"></div>
         <div id="map" class="map map--compact"></div>
         <div class="maps-link">
           <label>
@@ -149,11 +166,6 @@
           <select name="grind_setting" id="grind-setting-select" required>
             <option value="">Select grinder first</option>
           </select>
-        </label>
-        <label class="autocomplete" data-field="flavours">
-          Flavours
-          <input type="text" name="flavours" placeholder="strawberry, jasmine" autocomplete="off" />
-          <div class="suggestions"></div>
         </label>
         <label>
           Rating *

@@ -38,6 +38,15 @@
       </select>
     </label>
     <label>
+      Continent
+      <select name="continent">
+        <option value="">All</option>
+        {% for value in distinct_values.continent %}
+          <option value="{{ value }}" {% if request.args.get('continent') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
       Country
       <select name="country">
         <option value="">All</option>
