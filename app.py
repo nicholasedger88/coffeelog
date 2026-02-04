@@ -358,6 +358,83 @@ def parse_optional_float(value: str | None) -> float | None:
     return float(value)
 
 
+def parse_duration_input(value: str | None) -> tuple[int | None, str | None]:
+    if value is None:
+        return None, None
+    text = value.strip()
+    if not text:
+        return None, None
+    if ":" in text:
+        parts = text.split(":")
+        if len(parts) != 2:
+            return None, "Use mm:ss or seconds."
+        minutes_raw, seconds_raw = parts
+        if not minutes_raw.isdigit() or not seconds_raw.isdigit():
+            return None, "Use mm:ss or seconds."
+        minutes = int(minutes_raw)
+        seconds = int(seconds_raw)
+        if seconds >= 60:
+            return None, "Seconds must be under 60."
+        return minutes * 60 + seconds, None
+    try:
+        return int(text), None
+    except ValueError:
+        return None, "Use mm:ss or seconds."
+
+
+def parse_recipe_fields(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
+    data: dict[str, Any] = {}
+
+    data["recipe_notes"] = form.get("recipe_notes", "").strip()
+
+    dose_g = parse_optional_float(form.get("dose_g"))
+    if dose_g is not None and not (0 < dose_g <= 100):
+        errors.append("Dose must be between 0 and 100g.")
+    data["dose_g"] = dose_g
+
+    water_ml = parse_optional_int(form.get("water_ml"))
+    if water_ml is not None and not (0 < water_ml <= 2000):
+        errors.append("Water must be between 0 and 2000ml.")
+    data["water_ml"] = water_ml
+
+    temp_c = parse_optional_float(form.get("temp_c"))
+    if temp_c is not None and not (0 < temp_c <= 100):
+        errors.append("Temperature must be between 0 and 100°C.")
+    data["temp_c"] = temp_c
+
+    total_brew_s, total_error = parse_duration_input(form.get("total_brew_s"))
+    if total_error:
+        errors.append("Total brew time must be in mm:ss or seconds.")
+    if total_brew_s is not None and not (0 <= total_brew_s <= 3600):
+        errors.append("Total brew time must be between 0 and 3600s.")
+    data["total_brew_s"] = total_brew_s
+
+    pour_time_s, pour_error = parse_duration_input(form.get("pour_time_s"))
+    if pour_error:
+        errors.append("Pour time must be in mm:ss or seconds.")
+    if pour_time_s is not None and not (0 <= pour_time_s <= 3600):
+        errors.append("Pour time must be between 0 and 3600s.")
+    data["pour_time_s"] = pour_time_s
+
+    bloom_water_ml = parse_optional_int(form.get("bloom_water_ml"))
+    if bloom_water_ml is not None and not (0 <= bloom_water_ml <= 1000):
+        errors.append("Bloom water must be between 0 and 1000ml.")
+    data["bloom_water_ml"] = bloom_water_ml
+
+    bloom_time_s = parse_optional_int(form.get("bloom_time_s"))
+    if bloom_time_s is not None and not (0 <= bloom_time_s <= 600):
+        errors.append("Bloom time must be between 0 and 600s.")
+    data["bloom_time_s"] = bloom_time_s
+
+    agitation = form.get("agitation", "").strip()
+    if agitation and agitation not in {"none", "swirl", "stir"}:
+        errors.append("Agitation must be none, swirl, or stir.")
+    data["agitation"] = agitation or None
+
+    return data, errors
+
+
 def validate_bag_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
     data: dict[str, Any] = {}
@@ -437,47 +514,9 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
     data["grind_setting"] = grind_setting
 
     data["notes"] = form.get("notes", "").strip()
-    data["recipe_notes"] = form.get("recipe_notes", "").strip()
-
-    dose_g = parse_optional_float(form.get("dose_g"))
-    if dose_g is not None and not (0 < dose_g <= 100):
-        errors.append("Dose must be between 0 and 100g.")
-    data["dose_g"] = dose_g
-
-    water_ml = parse_optional_int(form.get("water_ml"))
-    if water_ml is not None and not (0 < water_ml <= 2000):
-        errors.append("Water must be between 0 and 2000ml.")
-    data["water_ml"] = water_ml
-
-    temp_c = parse_optional_float(form.get("temp_c"))
-    if temp_c is not None and not (0 < temp_c <= 100):
-        errors.append("Temperature must be between 0 and 100°C.")
-    data["temp_c"] = temp_c
-
-    total_brew_s = parse_optional_int(form.get("total_brew_s"))
-    if total_brew_s is not None and not (0 <= total_brew_s <= 3600):
-        errors.append("Total brew time must be between 0 and 3600s.")
-    data["total_brew_s"] = total_brew_s
-
-    pour_time_s = parse_optional_int(form.get("pour_time_s"))
-    if pour_time_s is not None and not (0 <= pour_time_s <= 3600):
-        errors.append("Pour time must be between 0 and 3600s.")
-    data["pour_time_s"] = pour_time_s
-
-    bloom_water_ml = parse_optional_int(form.get("bloom_water_ml"))
-    if bloom_water_ml is not None and not (0 <= bloom_water_ml <= 1000):
-        errors.append("Bloom water must be between 0 and 1000ml.")
-    data["bloom_water_ml"] = bloom_water_ml
-
-    bloom_time_s = parse_optional_int(form.get("bloom_time_s"))
-    if bloom_time_s is not None and not (0 <= bloom_time_s <= 600):
-        errors.append("Bloom time must be between 0 and 600s.")
-    data["bloom_time_s"] = bloom_time_s
-
-    agitation = form.get("agitation", "").strip()
-    if agitation and agitation not in {"none", "swirl", "stir"}:
-        errors.append("Agitation must be none, swirl, or stir.")
-    data["agitation"] = agitation or None
+    recipe_data, recipe_errors = parse_recipe_fields(form)
+    data.update(recipe_data)
+    errors.extend(recipe_errors)
 
     return data, errors
 
@@ -949,6 +988,48 @@ def add_coffee() -> Any:
         bag_options_data=bag_options_data,
         selected_bag_id=selected_bag_id,
     )
+
+
+@app.post("/brews/<int:brew_id>/recipe")
+def update_brew_recipe(brew_id: int) -> Any:
+    init_db()
+    recipe_data, errors = parse_recipe_fields(request.form)
+    if errors:
+        for error in errors:
+            flash(error, "error")
+        return redirect(request.referrer or url_for("log"))
+    conn = get_db()
+    conn.execute(
+        """
+        UPDATE brews
+        SET dose_g = ?,
+            water_ml = ?,
+            temp_c = ?,
+            total_brew_s = ?,
+            pour_time_s = ?,
+            bloom_water_ml = ?,
+            bloom_time_s = ?,
+            agitation = ?,
+            recipe_notes = ?
+        WHERE id = ?
+        """,
+        (
+            recipe_data["dose_g"],
+            recipe_data["water_ml"],
+            recipe_data["temp_c"],
+            recipe_data["total_brew_s"],
+            recipe_data["pour_time_s"],
+            recipe_data["bloom_water_ml"],
+            recipe_data["bloom_time_s"],
+            recipe_data["agitation"],
+            recipe_data["recipe_notes"],
+            brew_id,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    flash("Recipe updated.", "success")
+    return redirect(request.referrer or url_for("log"))
 
 
 @app.route("/log")

@@ -390,13 +390,33 @@ const setupAddMap = () => {
 };
 
 const setupRecipeAccordion = () => {
-  document.querySelectorAll(".recipe-toggle").forEach((toggle) => {
+  document.querySelectorAll(".recipe-toggle, .recipe-cta").forEach((toggle) => {
     const targetId = toggle.dataset.target;
     const panel = targetId ? document.getElementById(targetId) : null;
     if (!panel) return;
     toggle.addEventListener("click", () => {
       panel.classList.toggle("active");
+      toggle.setAttribute("aria-expanded", panel.classList.contains("active"));
     });
+  });
+};
+
+const setupNotesToggle = () => {
+  document.querySelectorAll(".notes-block").forEach((block) => {
+    const text = block.querySelector(".notes-text");
+    const toggle = block.querySelector(".notes-toggle");
+    if (!text || !toggle) return;
+    const updateVisibility = () => {
+      const isOverflowing = text.scrollHeight > text.clientHeight + 1;
+      toggle.style.display = isOverflowing ? "inline-flex" : "none";
+    };
+    requestAnimationFrame(updateVisibility);
+    toggle.addEventListener("click", () => {
+      const expanded = block.classList.toggle("notes-expanded");
+      toggle.setAttribute("aria-expanded", expanded);
+      toggle.textContent = expanded ? "Read less" : "Read more";
+    });
+    window.addEventListener("resize", updateVisibility);
   });
 };
 
@@ -868,6 +888,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupBagSelector();
   setupAddMap();
   setupRecipeAccordion();
+  setupNotesToggle();
   setupMapView();
   setupAltitudeChart();
   setupEquatorChart();
