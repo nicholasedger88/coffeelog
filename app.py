@@ -147,7 +147,13 @@ def has_recipe(brew: sqlite3.Row | dict[str, Any]) -> bool:
         "recipe_notes",
     ]
     for field in fields:
-        value = brew[field] if isinstance(brew, sqlite3.Row) else brew.get(field)
+        if isinstance(brew, sqlite3.Row):
+            try:
+                value = brew[field]
+            except (IndexError, KeyError):
+                continue
+        else:
+            value = brew.get(field)
         if value not in (None, ""):
             return True
     return False
@@ -262,6 +268,7 @@ def init_db() -> None:
     conn = get_db()
     conn.executescript(SCHEMA_SQL)
     migrate_bags_schema(conn)
+    migrate_brews_schema(conn)
     conn.commit()
     conn.close()
 
@@ -279,6 +286,29 @@ def migrate_bags_schema(conn: sqlite3.Connection) -> None:
         try:
             conn.execute(statement)
             app.logger.info("Migrated: added bags.%s", column)
+        except sqlite3.OperationalError:
+            pass
+
+
+def migrate_brews_schema(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(brews)").fetchall()}
+    migrations = {
+        "dose_g": "ALTER TABLE brews ADD COLUMN dose_g REAL;",
+        "water_ml": "ALTER TABLE brews ADD COLUMN water_ml INTEGER;",
+        "temp_c": "ALTER TABLE brews ADD COLUMN temp_c REAL;",
+        "total_brew_s": "ALTER TABLE brews ADD COLUMN total_brew_s INTEGER;",
+        "pour_time_s": "ALTER TABLE brews ADD COLUMN pour_time_s INTEGER;",
+        "bloom_water_ml": "ALTER TABLE brews ADD COLUMN bloom_water_ml INTEGER;",
+        "bloom_time_s": "ALTER TABLE brews ADD COLUMN bloom_time_s INTEGER;",
+        "agitation": "ALTER TABLE brews ADD COLUMN agitation TEXT;",
+        "recipe_notes": "ALTER TABLE brews ADD COLUMN recipe_notes TEXT;",
+    }
+    for column, statement in migrations.items():
+        if column in columns:
+            continue
+        try:
+            conn.execute(statement)
+            app.logger.info("Migrated: added brews.%s", column)
         except sqlite3.OperationalError:
             pass
 
@@ -558,7 +588,24 @@ def fetch_brews(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
     rows = conn.execute(
         f"""
         SELECT
-            brews.*,
+            brews.id,
+            brews.bag_id,
+            brews.date,
+            brews.rating,
+            brews.brew_style,
+            brews.grinder,
+            brews.grind_setting,
+            brews.notes,
+            brews.dose_g,
+            brews.water_ml,
+            brews.temp_c,
+            brews.total_brew_s,
+            brews.pour_time_s,
+            brews.bloom_water_ml,
+            brews.bloom_time_s,
+            brews.agitation,
+            brews.recipe_notes,
+            brews.created_at,
             bags.coffee_name,
             bags.brand,
             bags.varietal,
