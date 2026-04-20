@@ -131,7 +131,7 @@
         </div>
       {% endif %}
       <div class="assistant-item">
-        <span class="assistant-label">Suggested recipe baseline</span>
+        <span class="assistant-label">Suggested starting recipe</span>
         <strong>
           {% if dial_in_assistant.recipe_targets.dose_g %}{{ "%.1f"|format(dial_in_assistant.recipe_targets.dose_g) }}g{% else %}—{% endif %}
           ·
@@ -141,7 +141,7 @@
           ·
           {% if dial_in_assistant.recipe_targets.total_brew_s %}{{ dial_in_assistant.recipe_targets.total_brew_s|format_duration }}{% else %}—{% endif %}
         </strong>
-        <span class="assistant-meta">Averages from your top-rated brews (4+), otherwise all brews.</span>
+        <span class="assistant-meta">Average recipe values from your top-rated brews (4+); if none, this uses all brews for this bag.</span>
       </div>
     </div>
   </section>

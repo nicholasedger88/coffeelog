@@ -552,7 +552,7 @@ button.secondary,
 
 .leaflet-popup-content {
   margin: 10px 12px;
-  font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 12px;
   line-height: 1.4;
   color: var(--text);
@@ -992,8 +992,12 @@ button.secondary,
   gap: 16px;
 }
 
+.bag-card .detail-grid {
+  gap: 10px;
+}
+
 .bag-meta {
-  margin-top: 8px;
+  margin-top: 14px;
   display: flex;
   gap: 12px;
   color: var(--muted);
@@ -1031,6 +1035,14 @@ button.secondary,
 
 .brew-list {
   margin-top: var(--space-xl);
+}
+
+.brew-list .section-header {
+  margin-bottom: 14px;
+}
+
+.brew-list .stats-detail-list {
+  gap: 16px;
 }
 
 .stats-entry {
