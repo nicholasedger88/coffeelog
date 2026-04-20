@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Bags</h1>
+    <p>Track each coffee bag and its dial-in journey.</p>
+  </div>
+</section>
+
+<section class="cards">
+  {% for bag in bags %}
+    <article class="card bag-card">
+      <div class="card-header">
+        <div>
+          <h2>{{ bag.coffee_name }}</h2>
+          <p class="card-subtitle">{{ bag.brand }}</p>
+        </div>
+        <a class="secondary" href="{{ url_for('add_coffee') }}?bag_id={{ bag.id }}">Log brew</a>
+      </div>
+      <div class="card-body">
+        <p class="detail-value">
+          {% if bag.country %}{{ bag.country|flag_country }}{% endif %}
+          {% if bag.location %} · {{ bag.location }}{% endif %}
+        </p>
+        <div class="bag-meta">
+          <span>{{ bag.brew_count }} brews</span>
+          <span>
+            {% if bag.avg_rating %}
+              {{ "%.1f"|format(bag.avg_rating) }} / 5 avg
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      <div class="card-footer">
+        <a class="value-link" href="{{ url_for('bag_detail', bag_id=bag.id) }}">View bag</a>
+      </div>
+    </article>
+  {% else %}
+    <p class="empty">No bags yet. Start with your first brew.</p>
+  {% endfor %}
+</section>
+{% endblock %}

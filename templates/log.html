@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Brew log</h1>
+    <p>Review each brew attempt and its dial-in details.</p>
+  </div>
+</section>
+
+<div class="filter-bar">
+  {% include "partials/_filters.html" %}
+</div>
+
+<section class="cards">
+  {% for coffee in coffees %}
+    {% set is_target = entry_id and coffee.id|string == entry_id %}
+    <article class="card coffee-card{% if is_target %} highlight{% endif %}{% if coffee.latitude and coffee.longitude %} has-map{% endif %}" id="entry-{{ coffee.id }}">
+      <div class="card-header">
+        <div>
+          <h2>{{ coffee.coffee_name or "Untitled bag" }}</h2>
+          <p class="card-subtitle">{{ coffee.brand or "Unknown roaster" }}</p>
+        </div>
+        <span class="rating">{{ coffee.rating }}/5</span>
+      </div>
+      <div class="card-body">
+        <div class="card-content">
+          <div class="card-details">
+            <div class="detail-grid">
+              <div class="detail-row">
+                <span class="detail-label">Location</span>
+                <span class="detail-value">
+                  {% if coffee.country %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, country=coffee.country, entry_id='') }}">
+                      {{ coffee.country|flag_country }}
+                    </a>
+                  {% endif %}
+                  {% if coffee.location %}
+                    {% if coffee.country %}, {% endif %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, location=coffee.location, entry_id='') }}">
+                      {{ coffee.location }}
+                    </a>
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Varietal</span>
+                <span class="detail-value">
+                  {% if coffee.varietal %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, varietal=coffee.varietal, entry_id='') }}">
+                      {{ coffee.varietal }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Process</span>
+                <span class="detail-value">
+                  {% if coffee.process %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, process=coffee.process, entry_id='') }}">
+                      {{ coffee.process }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Flavours</span>
+                <span class="detail-value">{{ coffee.flavours or "—" }}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Bag</span>
+                <span class="detail-value">
+                  {% if coffee.brand %}
+                    <a class="value-link" href="{{ url_for('log') }}?{{ build_query(request.args, brand=coffee.brand, entry_id='') }}">
+                      {{ coffee.brand }}
+                    </a>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
+              </div>
+              {% if coffee.altitude_m %}
+                {% set position = coffee.altitude_m / 2500 * 100 %}
+                <div class="detail-row detail-altitude">
+                  <span class="detail-label">Altitude</span>
+                  <span class="detail-value">
+                    <span class="chip">⛰ {{ "{:,.0f}".format(coffee.altitude_m) }} m</span>
+                    <span class="meter">
+                      <span class="dot" style="left: {% if position < 0 %}0{% elif position > 100 %}100{% else %}{{ position|round(2) }}{% endif %}%"></span>
+                    </span>
+                  </span>
+                </div>
+              {% endif %}
+            </div>
+            <article class="brew-entry brew-entry--log">
+              <header class="brew-entry-header">
+                <span class="brew-entry-date">{{ coffee.date }}</span>
+                <span class="brew-entry-style">{{ coffee.brew_style }}</span>
+              </header>
+              <div class="brew-entry-block brew-entry-grind">
+                {{ coffee.grinder }}{% if coffee.grind_setting %} · {{ coffee.grind_setting|format_grind(coffee.grinder) }}{% endif %}
+              </div>
+              <div class="brew-entry-block brew-entry-rating">Rating: {{ coffee.rating }} / 5</div>
+              {% if coffee.notes %}
+                <div class="brew-entry-block brew-entry-notes notes-block">
+                  <p class="notes-text">{{ coffee.notes }}</p>
+                  <button type="button" class="notes-toggle" aria-expanded="false">Read more</button>
+                </div>
+              {% endif %}
+              <div class="brew-entry-block brew-entry-recipe">
+                {% if coffee|has_recipe %}
+                  <div class="recipe-summary-line">Recipe: {{ coffee|recipe_summary }}</div>
+                  <details class="recipe-details">
+                    <summary>Details</summary>
+                    <div class="recipe-details-body">
+                      {% if coffee.bloom_time_s or coffee.bloom_water_ml %}
+                        <p>Bloom: {{ coffee.bloom_water_ml or "—" }} ml · {{ coffee.bloom_time_s|format_duration }}</p>
+                      {% endif %}
+                      {% if coffee.pour_time_s %}
+                        <p>Pour time: {{ coffee.pour_time_s|format_duration }}</p>
+                      {% endif %}
+                      {% if coffee.agitation %}
+                        <p>Agitation: {{ coffee.agitation }}</p>
+                      {% endif %}
+                      {% if coffee.recipe_notes %}
+                        <p>{{ coffee.recipe_notes }}</p>
+                      {% endif %}
+                    </div>
+                  </details>
+                {% else %}
+                  <button type="button" class="recipe-cta" data-target="recipe-editor-{{ coffee.id }}">+ Add recipe</button>
+                  <div class="recipe-panel recipe-editor" id="recipe-editor-{{ coffee.id }}">
+                    <form method="post" action="{{ url_for('update_brew_recipe', brew_id=coffee.id) }}" class="recipe-inline-form">
+                      <div class="form-grid recipe-grid">
+                        <label>
+                          Beans ground (g)
+                          <input type="number" step="0.1" name="dose_g" min="0" max="100" />
+                        </label>
+                        <label>
+                          Water (ml)
+                          <input type="number" name="water_ml" min="0" max="2000" />
+                        </label>
+                      </div>
+                      <div class="recipe-toggle recipe-toggle--nested" data-target="recipe-details-{{ coffee.id }}">
+                        <span>Add more details</span>
+                        <span class="toggle-icon" aria-hidden="true">▾</span>
+                      </div>
+                      <div class="recipe-panel" id="recipe-details-{{ coffee.id }}">
+                        <div class="form-grid recipe-grid">
+                          <label>
+                            Temperature (°C)
+                            <input type="number" step="0.1" name="temp_c" min="0" max="100" />
+                          </label>
+                          <label>
+                            Total brew time (m:ss)
+                            <input type="text" name="total_brew_s" placeholder="2:45" inputmode="numeric" />
+                          </label>
+                          <label>
+                            Pour time (m:ss)
+                            <input type="text" name="pour_time_s" placeholder="1:30" inputmode="numeric" />
+                          </label>
+                          <label>
+                            Bloom water (ml)
+                            <input type="number" name="bloom_water_ml" min="0" max="1000" />
+                          </label>
+                          <label>
+                            Bloom time (s)
+                            <input type="number" name="bloom_time_s" min="0" max="600" />
+                          </label>
+                          <label>
+                            Agitation
+                            <select name="agitation">
+                              <option value="">Select</option>
+                              <option value="none">None</option>
+                              <option value="swirl">Swirl</option>
+                              <option value="stir">Stir</option>
+                            </select>
+                          </label>
+                        </div>
+                        <label>
+                          Recipe notes
+                          <textarea name="recipe_notes" rows="3" placeholder="Any adjustments or recipe context"></textarea>
+                        </label>
+                      </div>
+                      <div class="recipe-inline-actions">
+                        <button type="submit" class="secondary">Save recipe</button>
+                      </div>
+                    </form>
+                  </div>
+                {% endif %}
+              </div>
+              <footer class="brew-entry-footer">
+                <a class="text-link" href="{{ url_for('log') }}?entry_id={{ coffee.id }}">View entry</a>
+                <a class="text-link" href="{{ url_for('map_view') }}?entry_id={{ coffee.id }}">View on map</a>
+                <a class="text-link" href="{{ url_for('bag_detail', bag_id=coffee.bag_id) }}">View bag</a>
+              </footer>
+            </article>
+          </div>
+          {% if coffee.latitude and coffee.longitude %}
+            <div
+              class="origin-map"
+              role="button"
+              tabindex="0"
+              aria-label="View coffee on map"
+              data-lat="{{ coffee.latitude|format_latlon }}"
+              data-lon="{{ coffee.longitude|format_latlon }}"
+              data-id="{{ coffee.id }}"
+              data-rating="{{ coffee.rating }}"
+            ></div>
+          {% endif %}
+        </div>
+      </div>
+    </article>
+  {% else %}
+    <p class="empty">No brews yet. Log your first one!</p>
+  {% endfor %}
+</section>
+
+{% if entry_id %}
+  <div class="entry-clear">
+    <a href="{{ url_for('log') }}?{{ build_query(request.args, entry_id='') }}">Clear filter</a>
+  </div>
+{% endif %}
+
+<form method="post" action="{{ url_for('seed_route') }}" class="seed">
+  <button type="submit" class="secondary">Seed demo data</button>
+  <p>For demo only — this will add ~60 sample brews.</p>
+</form>
+
+{% if entry_id %}
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const target = document.getElementById("entry-{{ entry_id }}");
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    });
+  </script>
+{% endif %}
+{% endblock %}

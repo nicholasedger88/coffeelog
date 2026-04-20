@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Coffee map</h1>
+    <p>Trace origins and brew styles across the globe.</p>
+  </div>
+</section>
+
+<div class="filter-bar">
+  {% include "partials/_filters.html" %}
+</div>
+
+<section class="card map-card">
+  <div id="map-view" class="map map--tall"></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  window.coffeeMapData = {{ coffees|safe }};
+  window.latestBrewId = {{ latest_brew_id or "null" }};
+</script>
+{% endblock %}

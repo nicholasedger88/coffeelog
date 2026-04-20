@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header stats-header">
+  <div>
+    <h1>Stats</h1>
+    <p>At-a-glance patterns across your brews, with quick drill-ins.</p>
+  </div>
+</section>
+
+<form class="filters stats-filters" method="get">
+  {% if request.args.get('dim') %}
+    <input type="hidden" name="dim" value="{{ request.args.get('dim') }}" />
+  {% endif %}
+  {% if request.args.get('value') %}
+    <input type="hidden" name="value" value="{{ request.args.get('value') }}" />
+  {% endif %}
+  <div class="filter-grid">
+    <label>
+      From
+      <input type="date" name="date_from" value="{{ request.args.get('date_from', '') }}" />
+    </label>
+    <label>
+      To
+      <input type="date" name="date_to" value="{{ request.args.get('date_to', '') }}" />
+    </label>
+    <label>
+      Min rating
+      <select name="min_rating">
+        <option value="">Any</option>
+        {% for rating in range(1, 6) %}
+          <option value="{{ rating }}" {% if request.args.get('min_rating') == rating|string %}selected{% endif %}>
+            {{ rating }}+
+          </option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Continent
+      <select name="continent">
+        <option value="">All</option>
+        {% for value in continents %}
+          <option value="{{ value }}" {% if request.args.get('continent') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="primary">Apply filters</button>
+    <a href="{{ url_for('stats_view') }}" class="secondary">Reset</a>
+  </div>
+</form>
+
+{% if selection %}
+  <section class="card stats-detail">
+    <div class="stats-detail-header">
+      <div>
+        <p class="stats-kicker">Drill-in</p>
+        <h2>{{ selection.title }}</h2>
+        <p class="stats-detail-meta">
+          {{ selection.n }} brews ·
+          {% if selection.avg_rating %}
+            {{ "%.1f"|format(selection.avg_rating) }} / 5 avg rating
+          {% else %}
+            No ratings yet
+          {% endif %}
+        </p>
+      </div>
+      <a class="stats-back" href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='', value='') }}">
+        Back to stats
+      </a>
+    </div>
+    <div class="stats-detail-list">
+      {% for coffee in selection_coffees %}
+        <article class="stats-entry">
+          <div>
+            <h3>{{ coffee.coffee_name or "Untitled bag" }}</h3>
+            <p class="stats-entry-meta">
+              {{ coffee.brand or "Unknown roaster" }}
+              {% if coffee.varietal %} · {{ coffee.varietal }}{% endif %}
+              {% if coffee.country %} · {{ coffee.country|flag_country }}{% endif %}
+              {% if coffee.location %}{% if coffee.country %} · {% endif %}{{ coffee.location }}{% endif %}
+              · {{ coffee.brew_style }}
+              · Rating {{ coffee.rating }} / 5
+            </p>
+            <p class="stats-entry-date">{{ coffee.date }}</p>
+          </div>
+          <div class="stats-entry-actions">
+            <a class="secondary" href="{{ url_for('log') }}?entry_id={{ coffee.id }}">View entry</a>
+            <a class="secondary" href="{{ url_for('map_view') }}?entry_id={{ coffee.id }}">View on map</a>
+            <a class="secondary" href="{{ url_for('bag_detail', bag_id=coffee.bag_id) }}">View bag</a>
+          </div>
+        </article>
+      {% else %}
+        <p class="empty">No brews found for this selection.</p>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<div class="stats-grid">
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best brands</h2>
+      <p>Top roasters by average rating.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.brands %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='brand', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No brands yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best varietals</h2>
+      <p>Highest-rated varietals in your log.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.varietals %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='varietal', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No varietals yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best brew styles</h2>
+      <p>Highest-rated brew approaches.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.brew_styles %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='brew_style', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No brew styles yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best continents</h2>
+      <p>Continents with the top averages.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.continents %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='continent', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No continents yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best coffees</h2>
+      <p>Bag names with the best averages.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.coffee_names %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='coffee_name', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No bags yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best countries</h2>
+      <p>Countries with the highest average ratings.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.countries %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='country', value=item.name) }}"
+          >
+            {{ item.name|flag_country }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No countries yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best regions</h2>
+      <p>Country and location pairs with standout ratings.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.regions %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='region', value=item.country ~ '||' ~ item.location) }}"
+          >
+            {% if item.country %}{{ item.country|flag_country }} · {% endif %}{{ item.location }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No regions yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card">
+    <div class="stats-card-header">
+      <h2>Best processes</h2>
+      <p>Processing styles with top averages.</p>
+    </div>
+    <div class="ranked-list">
+      {% for item in ranked.processes %}
+        <div class="ranked-row">
+          <span class="ranked-rank">{{ loop.index }}</span>
+          <a
+            class="ranked-name"
+            href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='process', value=item.name) }}"
+          >
+            {{ item.name }}
+          </a>
+          <span class="ranked-meta">{{ "%.1f"|format(item.avg_rating) }} / 5</span>
+          <span class="ranked-count">{{ item.n }}</span>
+          <span class="ranked-bar">
+            <span style="width: {{ (item.avg_rating / 5 * 100) | round(0) }}%"></span>
+          </span>
+        </div>
+      {% else %}
+        <p class="empty">No processes yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="card stats-card stats-card--wide">
+    <div class="stats-card-header">
+      <h2>Altitude insights</h2>
+      <p>Lightweight patterns from altitude data.</p>
+    </div>
+    <div class="altitude-chips">
+      <div class="altitude-chip">
+        <span>Highest</span>
+        <strong>
+          {{ altitude.highest.title }}
+          {% if altitude.highest.altitude_m %}· {{ altitude.highest.altitude_m }} m{% endif %}
+        </strong>
+      </div>
+      <div class="altitude-chip">
+        <span>Lowest</span>
+        <strong>
+          {{ altitude.lowest.title }}
+          {% if altitude.lowest.altitude_m %}· {{ altitude.lowest.altitude_m }} m{% endif %}
+        </strong>
+      </div>
+      <div class="altitude-chip">
+        <span>Median</span>
+        <strong>
+          {% if altitude.median %}
+            {{ altitude.median }} m
+          {% else %}
+            —
+          {% endif %}
+        </strong>
+      </div>
+      <div class="altitude-chip">
+        <span>Coverage</span>
+        <strong>{{ altitude.coverage | round(0) }}%</strong>
+      </div>
+    </div>
+    <div class="altitude-bins">
+      {% for bin_item in altitude.bins %}
+        <a
+          class="altitude-bin"
+          href="{{ url_for('stats_view') }}?{{ build_query(request.args, dim='altitude_bin', value=bin_item.label) }}"
+        >
+          <span class="bin-label">{{ bin_item.label }}</span>
+          <span class="bin-bar">
+            <span
+              style="width: {{ (bin_item.n / altitude.max_bin * 100) | round(0) if altitude.max_bin else 0 }}%"
+            ></span>
+          </span>
+          <span class="bin-count">{{ bin_item.n }}</span>
+          <span class="bin-rating">
+            {% if bin_item.avg_rating %}
+              {{ "%.1f"|format(bin_item.avg_rating) }}
+            {% else %}
+              —
+            {% endif %}
+          </span>
+        </a>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+{% endblock %}
