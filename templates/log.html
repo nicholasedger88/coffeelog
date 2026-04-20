@@ -226,10 +226,12 @@
   </div>
 {% endif %}
 
-<form method="post" action="{{ url_for('seed_route') }}" class="seed">
-  <button type="submit" class="secondary">Seed demo data</button>
-  <p>For demo only — this will add ~60 sample brews.</p>
-</form>
+{% if allow_demo_seed %}
+  <form method="post" action="{{ url_for('seed_route') }}" class="seed">
+    <button type="submit" class="secondary">Seed demo data</button>
+    <p>For demo only — this will add ~60 sample brews.</p>
+  </form>
+{% endif %}
 
 {% if entry_id %}
   <script>

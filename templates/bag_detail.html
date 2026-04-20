@@ -105,6 +105,48 @@
   </section>
 {% endif %}
 
+{% if dial_in_assistant %}
+  <section class="card dial-in-assistant">
+    <div class="section-header">
+      <h3>Dial-in assistant</h3>
+      <p>Suggestions based on your previous brews for this bag.</p>
+    </div>
+    <div class="assistant-grid">
+      {% if dial_in_assistant.best_style.name %}
+        <div class="assistant-item">
+          <span class="assistant-label">Best brew style</span>
+          <strong>{{ dial_in_assistant.best_style.name }}</strong>
+          <span class="assistant-meta">
+            {{ "%.1f"|format(dial_in_assistant.best_style.avg) }} / 5 across {{ dial_in_assistant.best_style.n }} brew{{ "s" if dial_in_assistant.best_style.n != 1 else "" }}
+          </span>
+        </div>
+      {% endif %}
+      {% if dial_in_assistant.best_grind.name %}
+        <div class="assistant-item">
+          <span class="assistant-label">Best grinder + setting</span>
+          <strong>{{ dial_in_assistant.best_grind.name }}</strong>
+          <span class="assistant-meta">
+            {{ "%.1f"|format(dial_in_assistant.best_grind.avg) }} / 5 across {{ dial_in_assistant.best_grind.n }} brew{{ "s" if dial_in_assistant.best_grind.n != 1 else "" }}
+          </span>
+        </div>
+      {% endif %}
+      <div class="assistant-item">
+        <span class="assistant-label">Suggested recipe baseline</span>
+        <strong>
+          {% if dial_in_assistant.recipe_targets.dose_g %}{{ "%.1f"|format(dial_in_assistant.recipe_targets.dose_g) }}g{% else %}—{% endif %}
+          ·
+          {% if dial_in_assistant.recipe_targets.water_ml %}{{ (dial_in_assistant.recipe_targets.water_ml|round(0))|int }}ml{% else %}—{% endif %}
+          ·
+          {% if dial_in_assistant.recipe_targets.temp_c %}{{ "%.1f"|format(dial_in_assistant.recipe_targets.temp_c) }}°C{% else %}—{% endif %}
+          ·
+          {% if dial_in_assistant.recipe_targets.total_brew_s %}{{ dial_in_assistant.recipe_targets.total_brew_s|format_duration }}{% else %}—{% endif %}
+        </strong>
+        <span class="assistant-meta">Averages from your top-rated brews (4+), otherwise all brews.</span>
+      </div>
+    </div>
+  </section>
+{% endif %}
+
 <section class="card brew-list">
   <div class="section-header">
     <h3>Brew attempts</h3>

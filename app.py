@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -43,7 +44,8 @@ COUNTRY_CODES = {
 }
 
 app = Flask(__name__)
-app.secret_key = "coffee-log-mvp"
+app.secret_key = os.environ.get("COFFEELOG_SECRET_KEY", "coffee-log-dev-only")
+app.config["ALLOW_DEMO_SEED"] = os.environ.get("COFFEELOG_ALLOW_DEMO_SEED", "1") == "1"
 
 
 def emoji_flag(country_code: str) -> str:
@@ -428,9 +430,15 @@ def parse_recipe_fields(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]
     data["bloom_time_s"] = bloom_time_s
 
     agitation = form.get("agitation", "").strip()
-    if agitation and agitation not in {"none", "swirl", "stir"}:
-        errors.append("Agitation must be none, swirl, or stir.")
-    data["agitation"] = agitation or None
+    agitation, agitation_error = parse_allowed_choice(
+        agitation,
+        {"none", "swirl", "stir"},
+        "Agitation must be none, swirl, or stir.",
+        allow_empty=True,
+    )
+    if agitation_error:
+        errors.append(agitation_error)
+    data["agitation"] = agitation
 
     return data, errors
 
@@ -495,14 +503,22 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
         except ValueError:
             errors.append("Rating must be between 1 and 5.")
 
-    brew_style = form.get("brew_style", "").strip()
-    if brew_style not in ALLOWED_BREW_STYLES:
-        errors.append("Brew style must be one of the allowed options.")
+    brew_style, brew_style_error = parse_allowed_choice(
+        form.get("brew_style", "").strip(),
+        set(ALLOWED_BREW_STYLES),
+        "Brew style must be one of the allowed options.",
+    )
+    if brew_style_error:
+        errors.append(brew_style_error)
     data["brew_style"] = brew_style
 
-    grinder = form.get("grinder", "").strip()
-    if grinder not in ALLOWED_GRINDERS:
-        errors.append("Grinder must be one of the allowed options.")
+    grinder, grinder_error = parse_allowed_choice(
+        form.get("grinder", "").strip(),
+        set(ALLOWED_GRINDERS),
+        "Grinder must be one of the allowed options.",
+    )
+    if grinder_error:
+        errors.append(grinder_error)
     data["grinder"] = grinder
 
     grind_setting = form.get("grind_setting", "").strip()
@@ -552,6 +568,111 @@ def get_distinct_values(field: str) -> list[str]:
     ).fetchall()
     conn.close()
     return [row["value"] for row in rows]
+
+
+def parse_allowed_choice(
+    value: str,
+    allowed: set[str],
+    message: str,
+    allow_empty: bool = False,
+) -> tuple[str | None, str | None]:
+    if not value:
+        return (None, None) if allow_empty else ("", message)
+    if value in allowed:
+        return value, None
+    return value, message
+
+
+def build_distinct_values(include_brew_fields: bool = True) -> dict[str, list[str]]:
+    values = {
+        "coffee_name": get_distinct_values("coffee_name"),
+        "brand": get_distinct_values("brand"),
+        "varietal": get_distinct_values("varietal"),
+        "continent": get_distinct_values("continent"),
+        "country": get_distinct_values("country"),
+        "location": get_distinct_values("location"),
+        "process": get_distinct_values("process"),
+    }
+    if include_brew_fields:
+        values["brew_style"] = get_distinct_values("brew_style")
+    return values
+
+
+def fetch_latest_brew_id_for_bag(bag_id: int) -> int | None:
+    conn = get_db()
+    row = conn.execute(
+        """
+        SELECT id FROM brews
+        WHERE bag_id = ?
+        ORDER BY date DESC, created_at DESC
+        LIMIT 1
+        """,
+        (bag_id,),
+    ).fetchone()
+    conn.close()
+    if row:
+        return row["id"]
+    return None
+
+
+def build_dial_in_assistant(brews: list[sqlite3.Row]) -> dict[str, Any] | None:
+    if not brews:
+        return None
+    rated = [brew for brew in brews if brew["rating"] is not None]
+    if not rated:
+        return None
+
+    def pick_best_group(rows: list[sqlite3.Row], key_fn: Any) -> tuple[str | None, float | None, int]:
+        buckets: dict[str, list[int]] = {}
+        for row in rows:
+            key = key_fn(row)
+            if not key:
+                continue
+            buckets.setdefault(key, []).append(int(row["rating"]))
+        best_name: str | None = None
+        best_avg: float | None = None
+        best_n = 0
+        for name, values in buckets.items():
+            avg = sum(values) / len(values)
+            n = len(values)
+            if (
+                best_avg is None
+                or avg > best_avg
+                or (avg == best_avg and n > best_n)
+            ):
+                best_name = name
+                best_avg = avg
+                best_n = n
+        return best_name, best_avg, best_n
+
+    best_style, best_style_avg, best_style_n = pick_best_group(
+        rated, lambda row: row["brew_style"]
+    )
+    best_grind, best_grind_avg, best_grind_n = pick_best_group(
+        rated, lambda row: f'{row["grinder"]} · {format_grind_setting(row["grind_setting"], row["grinder"])}'
+    )
+
+    top_rows = [row for row in rated if int(row["rating"]) >= 4]
+    if not top_rows:
+        top_rows = rated
+
+    def avg_metric(metric: str) -> float | None:
+        numbers = [float(row[metric]) for row in top_rows if row[metric] is not None]
+        if not numbers:
+            return None
+        return sum(numbers) / len(numbers)
+
+    return {
+        "brew_count": len(brews),
+        "best_style": {"name": best_style, "avg": best_style_avg, "n": best_style_n},
+        "best_grind": {"name": best_grind, "avg": best_grind_avg, "n": best_grind_n},
+        "recipe_targets": {
+            "dose_g": avg_metric("dose_g"),
+            "water_ml": avg_metric("water_ml"),
+            "temp_c": avg_metric("temp_c"),
+            "total_brew_s": avg_metric("total_brew_s"),
+        },
+    }
 
 
 def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
@@ -1042,17 +1163,9 @@ def log() -> Any:
         "log.html",
         coffees=coffees,
         entry_id=entry_id,
+        allow_demo_seed=app.config["ALLOW_DEMO_SEED"],
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-            "brew_style": get_distinct_values("brew_style"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=True),
     )
 
 
@@ -1072,34 +1185,16 @@ def map_view() -> Any:
     ]
     latest_brew_id = None
     if bag_id:
-        conn = get_db()
-        row = conn.execute(
-            """
-            SELECT id FROM brews
-            WHERE bag_id = ?
-            ORDER BY date DESC, created_at DESC
-            LIMIT 1
-            """,
-            (bag_id,),
-        ).fetchone()
-        conn.close()
-        if row:
-            latest_brew_id = row["id"]
+        try:
+            latest_brew_id = fetch_latest_brew_id_for_bag(int(bag_id))
+        except ValueError:
+            latest_brew_id = None
     return render_template(
         "map.html",
         coffees=json.dumps(coffees),
         latest_brew_id=latest_brew_id,
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-            "brew_style": get_distinct_values("brew_style"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=True),
     )
 
 
@@ -1116,16 +1211,7 @@ def altitude_view() -> Any:
         "altitude.html",
         coffees=json.dumps(coffees),
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-            "brew_style": get_distinct_values("brew_style"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=True),
     )
 
 
@@ -1142,15 +1228,7 @@ def equator_view() -> Any:
         "equator.html",
         bags=json.dumps(bags),
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=False),
     )
 
 
@@ -1171,12 +1249,14 @@ def bag_detail(bag_id: int) -> Any:
     brews = fetch_brews_for_bag(bag_id)
     grind_insights = fetch_grind_insights(bag_id)
     latest_brew_id = brews[0]["id"] if brews else None
+    dial_in_assistant = build_dial_in_assistant(brews)
     return render_template(
         "bag_detail.html",
         bag=bag,
         brews=brews,
         grind_insights=grind_insights,
         latest_brew_id=latest_brew_id,
+        dial_in_assistant=dial_in_assistant,
     )
 
 
@@ -1619,6 +1699,9 @@ def reverse_geocode() -> Any:
 
 @app.route("/seed", methods=["POST"])
 def seed_route() -> Any:
+    if not app.config["ALLOW_DEMO_SEED"]:
+        flash("Seeding is disabled in this environment.", "error")
+        return redirect(url_for("bags_view"))
     from seed import seed_data
 
     init_db()
