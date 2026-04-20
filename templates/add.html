@@ -10,7 +10,28 @@
 
 <section class="card form-card">
   <form method="post" class="coffee-form" enctype="multipart/form-data">
-    <div class="form-section">
+    <div class="form-section entry-mode" id="entry-mode-section">
+      <div class="section-header">
+        <h3>What do you want to add?</h3>
+        <p>Choose one path to keep the form focused.</p>
+      </div>
+      <div class="mode-options">
+        <label class="mode-option">
+          <input type="radio" name="entry_mode" value="brew" {% if selected_entry_mode != "bag" %}checked{% endif %} />
+          <span>Log a brew</span>
+          <small>Use an existing bag or create one as part of the brew.</small>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="entry_mode" value="bag" {% if selected_entry_mode == "bag" %}checked{% endif %} />
+          <span>Add a bag only</span>
+          <small>Create a bag now and log brews later.</small>
+        </label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="form-section" id="select-bag-section">
       <div class="section-header">
         <h3>Select bag</h3>
         <p>Pick an existing bag or create a new one.</p>
@@ -133,7 +154,7 @@
 
     <div class="divider"></div>
 
-    <div class="form-section">
+    <div class="form-section" id="brew-details-section">
       <div class="section-header">
         <h3>Brew details</h3>
         <p>Track this attempt with dial-in notes.</p>
@@ -249,7 +270,15 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="primary">Save brew</button>
+      <button
+        type="submit"
+        class="primary"
+        data-bag-label="Save bag"
+        data-brew-label="Save brew"
+        id="submit-entry"
+      >
+        {% if selected_entry_mode == "bag" %}Save bag{% else %}Save brew{% endif %}
+      </button>
     </div>
   </form>
 </section>

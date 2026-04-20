@@ -983,6 +983,41 @@ def fetch_bags_for_equator(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
     return rows
 
 
+def insert_bag(conn: sqlite3.Connection, bag_data: dict[str, Any], photo: Any = None) -> int:
+    continent = continent_from_latlon(bag_data["latitude"], bag_data["longitude"])
+    cursor = conn.execute(
+        """
+        INSERT INTO bags (
+            coffee_name, brand, varietal, flavours, country, location, process,
+            latitude, longitude, altitude_m, continent, photo_path, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            bag_data["coffee_name"],
+            bag_data["brand"],
+            bag_data["varietal"],
+            bag_data["flavours"],
+            bag_data["country"],
+            bag_data["location"],
+            bag_data["process"],
+            bag_data["latitude"],
+            bag_data["longitude"],
+            bag_data["altitude_m"],
+            continent,
+            None,
+            datetime.utcnow().isoformat(timespec="seconds"),
+        ),
+    )
+    bag_id = int(cursor.lastrowid)
+    photo_path = save_bag_photo(bag_id, photo)
+    if photo_path:
+        conn.execute(
+            "UPDATE bags SET photo_path = ? WHERE id = ?",
+            (photo_path, bag_id),
+        )
+    return bag_id
+
+
 def save_bag_photo(bag_id: int, photo_file: Any) -> str | None:
     if not photo_file or not photo_file.filename:
         return None
@@ -1014,87 +1049,63 @@ def add_coffee() -> Any:
     bag_options = fetch_bag_options()
     bag_options_data = [dict(row) for row in bag_options]
     selected_bag_id = request.args.get("bag_id") or request.form.get("bag_id")
+    selected_entry_mode = request.form.get("entry_mode", "brew")
     if request.method == "POST":
+        selected_entry_mode = request.form.get("entry_mode", "brew")
+        bag_only_mode = selected_entry_mode == "bag"
         creating_new = request.form.get("create_bag") == "true"
         bag_id = parse_optional_int(selected_bag_id)
         bag_data: dict[str, Any] = {}
         errors: list[str] = []
-        if creating_new or not bag_id:
+        if bag_only_mode or creating_new or not bag_id:
             bag_data, errors = validate_bag_payload(request.form)
-        brew_data, brew_errors = validate_brew_payload(request.form)
-        errors.extend(brew_errors)
+        brew_data: dict[str, Any] = {}
+        if not bag_only_mode:
+            brew_data, brew_errors = validate_brew_payload(request.form)
+            errors.extend(brew_errors)
 
         if errors:
             for error in errors:
                 flash(error, "error")
         else:
             conn = get_db()
-            if creating_new or not bag_id:
-                continent = continent_from_latlon(bag_data["latitude"], bag_data["longitude"])
-                cursor = conn.execute(
+            if bag_only_mode:
+                bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
+            else:
+                if creating_new or not bag_id:
+                    bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
+                conn.execute(
                     """
-                    INSERT INTO bags (
-                        coffee_name, brand, varietal, flavours, country, location, process,
-                        latitude, longitude, altitude_m, continent, photo_path, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO brews (
+                        bag_id, date, rating, brew_style, grinder,
+                        grind_setting, notes, dose_g, water_ml, temp_c,
+                        total_brew_s, pour_time_s, bloom_water_ml, bloom_time_s,
+                        agitation, recipe_notes, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        bag_data["coffee_name"],
-                        bag_data["brand"],
-                        bag_data["varietal"],
-                        bag_data["flavours"],
-                        bag_data["country"],
-                        bag_data["location"],
-                        bag_data["process"],
-                        bag_data["latitude"],
-                        bag_data["longitude"],
-                        bag_data["altitude_m"],
-                        continent,
-                        None,
+                        bag_id,
+                        brew_data["date"],
+                        brew_data["rating"],
+                        brew_data["brew_style"],
+                        brew_data["grinder"],
+                        brew_data["grind_setting"],
+                        brew_data["notes"],
+                        brew_data["dose_g"],
+                        brew_data["water_ml"],
+                        brew_data["temp_c"],
+                        brew_data["total_brew_s"],
+                        brew_data["pour_time_s"],
+                        brew_data["bloom_water_ml"],
+                        brew_data["bloom_time_s"],
+                        brew_data["agitation"],
+                        brew_data["recipe_notes"],
                         datetime.utcnow().isoformat(timespec="seconds"),
                     ),
                 )
-                bag_id = cursor.lastrowid
-                photo = request.files.get("bag_photo")
-                photo_path = save_bag_photo(bag_id, photo)
-                if photo_path:
-                    conn.execute(
-                        "UPDATE bags SET photo_path = ? WHERE id = ?",
-                        (photo_path, bag_id),
-                    )
-
-            conn.execute(
-                """
-                INSERT INTO brews (
-                    bag_id, date, rating, brew_style, grinder,
-                    grind_setting, notes, dose_g, water_ml, temp_c,
-                    total_brew_s, pour_time_s, bloom_water_ml, bloom_time_s,
-                    agitation, recipe_notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    bag_id,
-                    brew_data["date"],
-                    brew_data["rating"],
-                    brew_data["brew_style"],
-                    brew_data["grinder"],
-                    brew_data["grind_setting"],
-                    brew_data["notes"],
-                    brew_data["dose_g"],
-                    brew_data["water_ml"],
-                    brew_data["temp_c"],
-                    brew_data["total_brew_s"],
-                    brew_data["pour_time_s"],
-                    brew_data["bloom_water_ml"],
-                    brew_data["bloom_time_s"],
-                    brew_data["agitation"],
-                    brew_data["recipe_notes"],
-                    datetime.utcnow().isoformat(timespec="seconds"),
-                ),
-            )
             conn.commit()
             conn.close()
-            flash("Brew logged successfully.", "success")
+            flash("Bag added successfully." if bag_only_mode else "Brew logged successfully.", "success")
             return redirect(url_for("bag_detail", bag_id=bag_id))
 
     return render_template(
@@ -1108,6 +1119,7 @@ def add_coffee() -> Any:
         bag_options=bag_options,
         bag_options_data=bag_options_data,
         selected_bag_id=selected_bag_id,
+        selected_entry_mode=selected_entry_mode,
     )
 
 

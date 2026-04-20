@@ -118,7 +118,7 @@ const setupBagSelector = () => {
   const bagIdInput = document.getElementById("bag-id");
   const toggle = document.getElementById("create-bag-toggle");
   const panel = document.getElementById("new-bag-panel");
-  if (!selector || !bagIdInput || !window.coffeeLogConfig) return;
+  if (!selector || !bagIdInput || !window.coffeeLogConfig) return null;
 
   const bagOptions = window.coffeeLogConfig.bagOptions || [];
   const labels = bagOptions.map((bag) => ({
@@ -161,6 +161,65 @@ const setupBagSelector = () => {
     }
   }
   togglePanel();
+  return {
+    setCreateBag: (active) => {
+      if (!toggle) return;
+      toggle.checked = active;
+      togglePanel();
+    },
+    togglePanel,
+  };
+};
+
+const setupEntryMode = (bagSelectorController) => {
+  const modeInputs = document.querySelectorAll('input[name="entry_mode"]');
+  if (!modeInputs.length) return;
+  const selectBagSection = document.getElementById("select-bag-section");
+  const brewDetailsSection = document.getElementById("brew-details-section");
+  const brewFields = brewDetailsSection?.querySelectorAll("input, select, textarea");
+  const submitButton = document.getElementById("submit-entry");
+
+  const applyMode = (mode) => {
+    const bagOnly = mode === "bag";
+    if (selectBagSection) {
+      selectBagSection.style.display = bagOnly ? "none" : "flex";
+    }
+    if (brewDetailsSection) {
+      brewDetailsSection.style.display = bagOnly ? "none" : "flex";
+    }
+    brewFields?.forEach((field) => {
+      if (field.hasAttribute("required")) {
+        field.dataset.wasRequired = "true";
+      }
+      if (bagOnly) {
+        field.disabled = true;
+        if (field.dataset.wasRequired === "true") {
+          field.removeAttribute("required");
+        }
+      } else {
+        field.disabled = false;
+        if (field.dataset.wasRequired === "true") {
+          field.setAttribute("required", "required");
+        }
+      }
+    });
+    bagSelectorController?.setCreateBag(bagOnly);
+    if (submitButton) {
+      submitButton.textContent = bagOnly
+        ? submitButton.dataset.bagLabel || "Save bag"
+        : submitButton.dataset.brewLabel || "Save brew";
+    }
+  };
+
+  modeInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.checked) {
+        applyMode(input.value);
+      }
+    });
+  });
+  const selected = Array.from(modeInputs).find((input) => input.checked);
+  applyMode(selected?.value || "brew");
 };
 
 const setupAddMap = () => {
@@ -885,7 +944,8 @@ const setupOriginMaps = () => {
 document.addEventListener("DOMContentLoaded", () => {
   setupAutocomplete();
   setupGrindSettings();
-  setupBagSelector();
+  const bagSelectorController = setupBagSelector();
+  setupEntryMode(bagSelectorController);
   setupAddMap();
   setupRecipeAccordion();
   setupNotesToggle();
