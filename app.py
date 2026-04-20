@@ -1053,12 +1053,13 @@ def add_coffee() -> Any:
     if request.method == "POST":
         selected_entry_mode = request.form.get("entry_mode", "brew")
         bag_only_mode = selected_entry_mode == "bag"
-        creating_new = request.form.get("create_bag") == "true"
         bag_id = parse_optional_int(selected_bag_id)
         bag_data: dict[str, Any] = {}
         errors: list[str] = []
-        if bag_only_mode or creating_new or not bag_id:
+        if bag_only_mode:
             bag_data, errors = validate_bag_payload(request.form)
+        if not bag_only_mode and not bag_id:
+            errors.append("Select an existing bag.")
         brew_data: dict[str, Any] = {}
         if not bag_only_mode:
             brew_data, brew_errors = validate_brew_payload(request.form)
@@ -1072,8 +1073,6 @@ def add_coffee() -> Any:
             if bag_only_mode:
                 bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
             else:
-                if creating_new or not bag_id:
-                    bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
                 conn.execute(
                     """
                     INSERT INTO brews (

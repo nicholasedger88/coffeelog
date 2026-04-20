@@ -116,8 +116,6 @@ const setupGrindSettings = () => {
 const setupBagSelector = () => {
   const selector = document.getElementById("bag-selector");
   const bagIdInput = document.getElementById("bag-id");
-  const toggle = document.getElementById("create-bag-toggle");
-  const panel = document.getElementById("new-bag-panel");
   if (!selector || !bagIdInput || !window.coffeeLogConfig) return null;
 
   const bagOptions = window.coffeeLogConfig.bagOptions || [];
@@ -131,21 +129,8 @@ const setupBagSelector = () => {
     bagIdInput.value = match ? match.id : "";
   };
 
-  const togglePanel = () => {
-    const active = toggle?.checked;
-    if (panel) {
-      panel.style.display = active ? "block" : "none";
-    }
-    if (active) {
-      bagIdInput.value = "";
-    } else {
-      syncSelection();
-    }
-  };
-
   selector.addEventListener("change", syncSelection);
   selector.addEventListener("input", syncSelection);
-  toggle?.addEventListener("change", togglePanel);
 
   if (selector.dataset.selectedId) {
     const preset = labels.find((item) => item.id === selector.dataset.selectedId);
@@ -155,34 +140,33 @@ const setupBagSelector = () => {
     }
   }
 
-  if (!bagIdInput.value) {
-    if (toggle) {
-      toggle.checked = true;
-    }
-  }
-  togglePanel();
+  syncSelection();
   return {
-    setCreateBag: (active) => {
-      if (!toggle) return;
-      toggle.checked = active;
-      togglePanel();
-    },
-    togglePanel,
+    syncSelection,
   };
 };
 
 const setupEntryMode = (bagSelectorController) => {
-  const modeInputs = document.querySelectorAll('input[name="entry_mode"]');
-  if (!modeInputs.length) return;
+  const modeInput = document.getElementById("entry-mode-input");
+  const modeButtons = document.querySelectorAll(".mode-option[data-mode]");
+  if (!modeInput || !modeButtons.length) return;
   const selectBagSection = document.getElementById("select-bag-section");
+  const newBagPanel = document.getElementById("new-bag-panel");
   const brewDetailsSection = document.getElementById("brew-details-section");
   const brewFields = brewDetailsSection?.querySelectorAll("input, select, textarea");
   const submitButton = document.getElementById("submit-entry");
 
   const applyMode = (mode) => {
     const bagOnly = mode === "bag";
+    modeInput.value = bagOnly ? "bag" : "brew";
+    modeButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.mode === modeInput.value);
+    });
     if (selectBagSection) {
       selectBagSection.style.display = bagOnly ? "none" : "flex";
+    }
+    if (newBagPanel) {
+      newBagPanel.style.display = bagOnly ? "block" : "none";
     }
     if (brewDetailsSection) {
       brewDetailsSection.style.display = bagOnly ? "none" : "flex";
@@ -203,7 +187,9 @@ const setupEntryMode = (bagSelectorController) => {
         }
       }
     });
-    bagSelectorController?.setCreateBag(bagOnly);
+    if (!bagOnly) {
+      bagSelectorController?.syncSelection();
+    }
     if (submitButton) {
       submitButton.textContent = bagOnly
         ? submitButton.dataset.bagLabel || "Save bag"
@@ -211,15 +197,13 @@ const setupEntryMode = (bagSelectorController) => {
     }
   };
 
-  modeInputs.forEach((input) => {
-    input.addEventListener("change", () => {
-      if (input.checked) {
-        applyMode(input.value);
-      }
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const mode = button.dataset.mode === "bag" ? "bag" : "brew";
+      applyMode(mode);
     });
   });
-  const selected = Array.from(modeInputs).find((input) => input.checked);
-  applyMode(selected?.value || "brew");
+  applyMode(modeInput.value === "bag" ? "bag" : "brew");
 };
 
 const setupAddMap = () => {

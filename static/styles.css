@@ -18,7 +18,7 @@
 
 body {
   margin: 0;
-  font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
   font-size: 14px;
@@ -117,6 +117,19 @@ nav a:focus {
   padding: 12px;
   gap: 6px;
   cursor: pointer;
+  text-align: left;
+  background: #fff;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mode-option.is-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.mode-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
 }
 
 .mode-option span {
