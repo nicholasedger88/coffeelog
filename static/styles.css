@@ -1049,10 +1049,10 @@ button.secondary,
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 16px;
-  flex-wrap: wrap;
 }
 
 .stats-entry h3 {
@@ -1075,7 +1075,9 @@ button.secondary,
 .stats-entry-actions {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  font-size: 12px;
+  align-self: end;
 }
 
 .brew-entry {
@@ -1314,6 +1316,14 @@ button.secondary,
   .stats-detail-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .stats-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-entry-actions {
+    justify-content: flex-start;
   }
 
   .bag-summary {
