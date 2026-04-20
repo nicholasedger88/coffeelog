@@ -83,6 +83,10 @@
                   {% endif %}
                 </span>
               </div>
+              <div class="detail-row">
+                <span class="detail-label">Logged by</span>
+                <span class="detail-value">{{ coffee.logged_by_user or "—" }}</span>
+              </div>
               {% if coffee.altitude_m %}
                 {% set position = coffee.altitude_m / 2500 * 100 %}
                 <div class="detail-row detail-altitude">

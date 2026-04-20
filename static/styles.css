@@ -96,8 +96,7 @@ nav a:focus {
 }
 
 .page-header p,
-.section-header p,
-.card-subtitle {
+.section-header p {
   display: none;
 }
 

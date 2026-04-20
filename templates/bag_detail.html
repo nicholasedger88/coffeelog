@@ -171,6 +171,7 @@
         <div class="brew-entry-block brew-entry-grind">
           {{ brew.grinder }} · {{ brew.grind_setting|format_grind(brew.grinder) }}
         </div>
+        <div class="brew-entry-block brew-entry-grind">Logged by: {{ brew.logged_by_user or "—" }}</div>
         <div class="brew-entry-block brew-entry-rating">Rating: {{ brew.rating }} / 5</div>
         {% if brew.notes %}
           <div class="brew-entry-block brew-entry-notes notes-block">

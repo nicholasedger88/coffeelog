@@ -26,6 +26,16 @@
           <small>Create a bag now and log brews later.</small>
         </button>
       </div>
+      <div class="form-grid">
+        <label>
+          Log as
+          <select name="log_as" required>
+            {% for user in users %}
+              <option value="{{ user }}" {% if request.form.get('log_as', users[0]) == user %}selected{% endif %}>{{ user }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
     </div>
 
     <div class="divider"></div>

@@ -83,6 +83,15 @@
       </select>
     </label>
     <label>
+      Logged by
+      <select name="logged_by_user">
+        <option value="">All</option>
+        {% for value in distinct_values.logged_by_user %}
+          <option value="{{ value }}" {% if request.args.get('logged_by_user') == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
       Min rating
       <select name="min_rating">
         <option value="">Any</option>

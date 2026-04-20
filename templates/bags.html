@@ -8,6 +8,24 @@
   </div>
 </section>
 
+<form class="filters" method="get">
+  <div class="filter-grid">
+    <label>
+      User
+      <select name="user">
+        <option value="">All</option>
+        {% for user in users %}
+          <option value="{{ user }}" {% if selected_user == user %}selected{% endif %}>{{ user }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+  <div class="filter-actions">
+    <button type="submit" class="primary">Apply</button>
+    <a href="{{ url_for('bags_view') }}" class="secondary">Reset</a>
+  </div>
+</form>
+
 <section class="cards">
   {% for bag in bags %}
     <article class="card bag-card">
@@ -43,6 +61,10 @@
           <div class="detail-row">
             <span class="detail-label">Altitude</span>
             <span class="detail-value">{% if bag.altitude_m %}{{ bag.altitude_m }} m{% else %}—{% endif %}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Owner</span>
+            <span class="detail-value">{{ bag.owner_user or "—" }}</span>
           </div>
         </div>
         <div class="bag-meta">
