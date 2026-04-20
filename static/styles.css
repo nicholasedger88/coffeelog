@@ -95,6 +95,12 @@ nav a:focus {
   font-size: 13px;
 }
 
+.page-header p,
+.section-header p,
+.card-subtitle {
+  display: none;
+}
+
 .form-card {
   padding: 18px 20px;
 }
@@ -1108,6 +1114,31 @@ button.secondary,
 .brew-entry-style {
   font-weight: 600;
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brew-style-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: grayscale(1) brightness(0);
+}
+
+.brew-style-icon--v60 {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M6 3h12l-2 5-3 13h-2L8 8z'/%3E%3C/svg%3E");
+}
+
+.brew-style-icon--moka {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 3h8l2 6-2 10H8L6 9zM5 9h2v8H5zM18 9h1.5A2.5 2.5 0 0 1 22 11.5v2A2.5 2.5 0 0 1 19.5 16H18z'/%3E%3C/svg%3E");
+}
+
+.brew-style-icon--aeropress {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 2h8v3H8zm1 4h6l1 12H8zm-1 12h8v2H8zm10-10h3v5h-3z'/%3E%3C/svg%3E");
 }
 
 .brew-entry-block + .brew-entry-block {
