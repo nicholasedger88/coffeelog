@@ -86,9 +86,9 @@
             <p class="stats-entry-date">{{ coffee.date }}</p>
           </div>
           <div class="stats-entry-actions">
-            <a class="secondary" href="{{ url_for('log') }}?entry_id={{ coffee.id }}">View entry</a>
-            <a class="secondary" href="{{ url_for('map_view') }}?entry_id={{ coffee.id }}">View on map</a>
-            <a class="secondary" href="{{ url_for('bag_detail', bag_id=coffee.bag_id) }}">View bag</a>
+            <a class="text-link" href="{{ url_for('log') }}?entry_id={{ coffee.id }}">View entry</a>
+            <a class="text-link" href="{{ url_for('map_view') }}?entry_id={{ coffee.id }}">View on map</a>
+            <a class="text-link" href="{{ url_for('bag_detail', bag_id=coffee.bag_id) }}">View bag</a>
           </div>
         </article>
       {% else %}
