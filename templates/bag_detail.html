@@ -105,6 +105,48 @@
   </section>
 {% endif %}
 
+{% if dial_in_assistant %}
+  <section class="card dial-in-assistant">
+    <div class="section-header">
+      <h3>Dial-in assistant</h3>
+      <p>Suggestions based on your previous brews for this bag.</p>
+    </div>
+    <div class="assistant-grid">
+      {% if dial_in_assistant.best_style.name %}
+        <div class="assistant-item">
+          <span class="assistant-label">Best brew style</span>
+          <strong>{{ dial_in_assistant.best_style.name }}</strong>
+          <span class="assistant-meta">
+            {{ "%.1f"|format(dial_in_assistant.best_style.avg) }} / 5 across {{ dial_in_assistant.best_style.n }} brew{{ "s" if dial_in_assistant.best_style.n != 1 else "" }}
+          </span>
+        </div>
+      {% endif %}
+      {% if dial_in_assistant.best_grind.name %}
+        <div class="assistant-item">
+          <span class="assistant-label">Best grinder + setting</span>
+          <strong>{{ dial_in_assistant.best_grind.name }}</strong>
+          <span class="assistant-meta">
+            {{ "%.1f"|format(dial_in_assistant.best_grind.avg) }} / 5 across {{ dial_in_assistant.best_grind.n }} brew{{ "s" if dial_in_assistant.best_grind.n != 1 else "" }}
+          </span>
+        </div>
+      {% endif %}
+      <div class="assistant-item">
+        <span class="assistant-label">Suggested starting recipe</span>
+        <strong>
+          {% if dial_in_assistant.recipe_targets.dose_g %}{{ "%.1f"|format(dial_in_assistant.recipe_targets.dose_g) }}g{% else %}—{% endif %}
+          ·
+          {% if dial_in_assistant.recipe_targets.water_ml %}{{ (dial_in_assistant.recipe_targets.water_ml|round(0))|int }}ml{% else %}—{% endif %}
+          ·
+          {% if dial_in_assistant.recipe_targets.temp_c %}{{ "%.1f"|format(dial_in_assistant.recipe_targets.temp_c) }}°C{% else %}—{% endif %}
+          ·
+          {% if dial_in_assistant.recipe_targets.total_brew_s %}{{ dial_in_assistant.recipe_targets.total_brew_s|format_duration }}{% else %}—{% endif %}
+        </strong>
+        <span class="assistant-meta">Average recipe values from your top-rated brews (4+); if none, this uses all brews for this bag.</span>
+      </div>
+    </div>
+  </section>
+{% endif %}
+
 <section class="card brew-list">
   <div class="section-header">
     <h3>Brew attempts</h3>
@@ -115,11 +157,21 @@
       <article class="brew-entry">
         <header class="brew-entry-header">
           <span class="brew-entry-date">{{ brew.date }}</span>
-          <span class="brew-entry-style">{{ brew.brew_style }}</span>
+          <span class="brew-entry-style">
+            {% if brew.brew_style == "V60" %}
+              <span class="brew-style-icon brew-style-icon--v60" aria-hidden="true"></span>
+            {% elif brew.brew_style == "Moka pot" %}
+              <span class="brew-style-icon brew-style-icon--moka" aria-hidden="true"></span>
+            {% elif brew.brew_style == "Aeropress" %}
+              <span class="brew-style-icon brew-style-icon--aeropress" aria-hidden="true"></span>
+            {% endif %}
+            {{ brew.brew_style }}
+          </span>
         </header>
         <div class="brew-entry-block brew-entry-grind">
           {{ brew.grinder }} · {{ brew.grind_setting|format_grind(brew.grinder) }}
         </div>
+        <div class="brew-entry-block brew-entry-grind">Logged by: {{ brew.logged_by_user or "—" }}</div>
         <div class="brew-entry-block brew-entry-rating">Rating: {{ brew.rating }} / 5</div>
         {% if brew.notes %}
           <div class="brew-entry-block brew-entry-notes notes-block">
@@ -211,7 +263,6 @@
         </div>
         <footer class="brew-entry-footer">
           <a class="text-link" href="{{ url_for('log') }}?entry_id={{ brew.id }}">View entry</a>
-          <a class="text-link" href="{{ url_for('map_view') }}?entry_id={{ brew.id }}">View on map</a>
         </footer>
       </article>
     {% else %}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import sqlite3
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,7 @@ AERGRIND_SETTINGS = [
 ]
 BELINDA_SETTINGS = [str(i) for i in range(1, 13)]
 ALLOWED_BREW_STYLES = ["Aeropress", "Moka pot", "V60"]
+ALLOWED_USERS = ["Nicholas", "Belinda"]
 ALLOWED_PROCESSES = ["washed", "natural", "anaerobic", "honey", "experimental"]
 ELEVATION_API = "https://api.open-elevation.com/api/v1/lookup"
 COUNTRY_CODES = {
@@ -43,7 +45,8 @@ COUNTRY_CODES = {
 }
 
 app = Flask(__name__)
-app.secret_key = "coffee-log-mvp"
+app.secret_key = os.environ.get("COFFEELOG_SECRET_KEY", "coffee-log-dev-only")
+app.config["ALLOW_DEMO_SEED"] = os.environ.get("COFFEELOG_ALLOW_DEMO_SEED", "1") == "1"
 
 
 def emoji_flag(country_code: str) -> str:
@@ -230,6 +233,7 @@ CREATE TABLE IF NOT EXISTS bags (
     longitude REAL,
     altitude_m INTEGER,
     continent TEXT,
+    owner_user TEXT,
     photo_path TEXT,
     created_at TEXT NOT NULL
 );
@@ -241,6 +245,7 @@ CREATE TABLE IF NOT EXISTS brews (
     rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
     brew_style TEXT NOT NULL,
     grinder TEXT NOT NULL,
+    logged_by_user TEXT NOT NULL DEFAULT 'Nicholas',
     grind_setting TEXT NOT NULL,
     notes TEXT,
     dose_g REAL,
@@ -279,6 +284,7 @@ def migrate_bags_schema(conn: sqlite3.Connection) -> None:
         "flavours": "ALTER TABLE bags ADD COLUMN flavours TEXT;",
         "photo_path": "ALTER TABLE bags ADD COLUMN photo_path TEXT;",
         "continent": "ALTER TABLE bags ADD COLUMN continent TEXT;",
+        "owner_user": "ALTER TABLE bags ADD COLUMN owner_user TEXT;",
     }
     for column, statement in migrations.items():
         if column in columns:
@@ -288,6 +294,9 @@ def migrate_bags_schema(conn: sqlite3.Connection) -> None:
             app.logger.info("Migrated: added bags.%s", column)
         except sqlite3.OperationalError:
             pass
+    conn.execute(
+        "UPDATE bags SET owner_user = COALESCE(owner_user, 'Nicholas') WHERE owner_user IS NULL OR owner_user = ''"
+    )
 
 
 def migrate_brews_schema(conn: sqlite3.Connection) -> None:
@@ -302,6 +311,7 @@ def migrate_brews_schema(conn: sqlite3.Connection) -> None:
         "bloom_time_s": "ALTER TABLE brews ADD COLUMN bloom_time_s INTEGER;",
         "agitation": "ALTER TABLE brews ADD COLUMN agitation TEXT;",
         "recipe_notes": "ALTER TABLE brews ADD COLUMN recipe_notes TEXT;",
+        "logged_by_user": "ALTER TABLE brews ADD COLUMN logged_by_user TEXT;",
     }
     for column, statement in migrations.items():
         if column in columns:
@@ -311,6 +321,9 @@ def migrate_brews_schema(conn: sqlite3.Connection) -> None:
             app.logger.info("Migrated: added brews.%s", column)
         except sqlite3.OperationalError:
             pass
+    conn.execute(
+        "UPDATE brews SET logged_by_user = COALESCE(logged_by_user, 'Nicholas') WHERE logged_by_user IS NULL OR logged_by_user = ''"
+    )
 
 
 def normalize_flavours(raw: str) -> str:
@@ -428,9 +441,15 @@ def parse_recipe_fields(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]
     data["bloom_time_s"] = bloom_time_s
 
     agitation = form.get("agitation", "").strip()
-    if agitation and agitation not in {"none", "swirl", "stir"}:
-        errors.append("Agitation must be none, swirl, or stir.")
-    data["agitation"] = agitation or None
+    agitation, agitation_error = parse_allowed_choice(
+        agitation,
+        {"none", "swirl", "stir"},
+        "Agitation must be none, swirl, or stir.",
+        allow_empty=True,
+    )
+    if agitation_error:
+        errors.append(agitation_error)
+    data["agitation"] = agitation
 
     return data, errors
 
@@ -469,6 +488,14 @@ def validate_bag_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str
     data["country"] = form.get("country", "").strip()
     data["location"] = form.get("location", "").strip()
     data["process"] = form.get("process", "").strip()
+    owner_user, owner_error = parse_allowed_choice(
+        form.get("log_as", "").strip(),
+        set(ALLOWED_USERS),
+        "Log as must be Nicholas or Belinda.",
+    )
+    if owner_error:
+        errors.append(owner_error)
+    data["owner_user"] = owner_user
 
     return data, errors
 
@@ -495,14 +522,22 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
         except ValueError:
             errors.append("Rating must be between 1 and 5.")
 
-    brew_style = form.get("brew_style", "").strip()
-    if brew_style not in ALLOWED_BREW_STYLES:
-        errors.append("Brew style must be one of the allowed options.")
+    brew_style, brew_style_error = parse_allowed_choice(
+        form.get("brew_style", "").strip(),
+        set(ALLOWED_BREW_STYLES),
+        "Brew style must be one of the allowed options.",
+    )
+    if brew_style_error:
+        errors.append(brew_style_error)
     data["brew_style"] = brew_style
 
-    grinder = form.get("grinder", "").strip()
-    if grinder not in ALLOWED_GRINDERS:
-        errors.append("Grinder must be one of the allowed options.")
+    grinder, grinder_error = parse_allowed_choice(
+        form.get("grinder", "").strip(),
+        set(ALLOWED_GRINDERS),
+        "Grinder must be one of the allowed options.",
+    )
+    if grinder_error:
+        errors.append(grinder_error)
     data["grinder"] = grinder
 
     grind_setting = form.get("grind_setting", "").strip()
@@ -514,6 +549,14 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
     data["grind_setting"] = grind_setting
 
     data["notes"] = form.get("notes", "").strip()
+    logged_by_user, user_error = parse_allowed_choice(
+        form.get("log_as", "").strip(),
+        set(ALLOWED_USERS),
+        "Log as must be Nicholas or Belinda.",
+    )
+    if user_error:
+        errors.append(user_error)
+    data["logged_by_user"] = logged_by_user
     recipe_data, recipe_errors = parse_recipe_fields(form)
     data.update(recipe_data)
     errors.extend(recipe_errors)
@@ -530,11 +573,13 @@ def get_distinct_values(field: str) -> list[str]:
         "country": "bags.country",
         "location": "bags.location",
         "process": "bags.process",
+        "owner_user": "bags.owner_user",
     }
     brew_fields = {
         "brew_style": "brews.brew_style",
         "grinder": "brews.grinder",
         "grind_setting": "brews.grind_setting",
+        "logged_by_user": "brews.logged_by_user",
         "flavours": "bags.flavours",
     }
     field_expr = bag_fields.get(field) or brew_fields.get(field)
@@ -552,6 +597,113 @@ def get_distinct_values(field: str) -> list[str]:
     ).fetchall()
     conn.close()
     return [row["value"] for row in rows]
+
+
+def parse_allowed_choice(
+    value: str,
+    allowed: set[str],
+    message: str,
+    allow_empty: bool = False,
+) -> tuple[str | None, str | None]:
+    if not value:
+        return (None, None) if allow_empty else ("", message)
+    if value in allowed:
+        return value, None
+    return value, message
+
+
+def build_distinct_values(include_brew_fields: bool = True) -> dict[str, list[str]]:
+    values = {
+        "coffee_name": get_distinct_values("coffee_name"),
+        "brand": get_distinct_values("brand"),
+        "varietal": get_distinct_values("varietal"),
+        "continent": get_distinct_values("continent"),
+        "country": get_distinct_values("country"),
+        "location": get_distinct_values("location"),
+        "process": get_distinct_values("process"),
+        "owner_user": get_distinct_values("owner_user"),
+    }
+    if include_brew_fields:
+        values["brew_style"] = get_distinct_values("brew_style")
+        values["logged_by_user"] = get_distinct_values("logged_by_user")
+    return values
+
+
+def fetch_latest_brew_id_for_bag(bag_id: int) -> int | None:
+    conn = get_db()
+    row = conn.execute(
+        """
+        SELECT id FROM brews
+        WHERE bag_id = ?
+        ORDER BY date DESC, created_at DESC
+        LIMIT 1
+        """,
+        (bag_id,),
+    ).fetchone()
+    conn.close()
+    if row:
+        return row["id"]
+    return None
+
+
+def build_dial_in_assistant(brews: list[sqlite3.Row]) -> dict[str, Any] | None:
+    if not brews:
+        return None
+    rated = [brew for brew in brews if brew["rating"] is not None]
+    if not rated:
+        return None
+
+    def pick_best_group(rows: list[sqlite3.Row], key_fn: Any) -> tuple[str | None, float | None, int]:
+        buckets: dict[str, list[int]] = {}
+        for row in rows:
+            key = key_fn(row)
+            if not key:
+                continue
+            buckets.setdefault(key, []).append(int(row["rating"]))
+        best_name: str | None = None
+        best_avg: float | None = None
+        best_n = 0
+        for name, values in buckets.items():
+            avg = sum(values) / len(values)
+            n = len(values)
+            if (
+                best_avg is None
+                or avg > best_avg
+                or (avg == best_avg and n > best_n)
+            ):
+                best_name = name
+                best_avg = avg
+                best_n = n
+        return best_name, best_avg, best_n
+
+    best_style, best_style_avg, best_style_n = pick_best_group(
+        rated, lambda row: row["brew_style"]
+    )
+    best_grind, best_grind_avg, best_grind_n = pick_best_group(
+        rated, lambda row: f'{row["grinder"]} · {format_grind_setting(row["grind_setting"], row["grinder"])}'
+    )
+
+    top_rows = [row for row in rated if int(row["rating"]) >= 4]
+    if not top_rows:
+        top_rows = rated
+
+    def avg_metric(metric: str) -> float | None:
+        numbers = [float(row[metric]) for row in top_rows if row[metric] is not None]
+        if not numbers:
+            return None
+        return sum(numbers) / len(numbers)
+
+    return {
+        "brew_count": len(brews),
+        "best_style": {"name": best_style, "avg": best_style_avg, "n": best_style_n},
+        "best_grind": {"name": best_grind, "avg": best_grind_avg, "n": best_grind_n},
+        "recipe_targets": {
+            "dose_g": avg_metric("dose_g"),
+            "water_ml": avg_metric("water_ml"),
+            "temp_c": avg_metric("temp_c"),
+            "total_brew_s": avg_metric("total_brew_s"),
+        },
+    }
 
 
 def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
@@ -573,11 +725,13 @@ def build_filters_from_request(args: dict[str, str]) -> tuple[str, list[Any]]:
         "country": "bags.country",
         "location": "bags.location",
         "process": "bags.process",
+        "owner_user": "bags.owner_user",
     }
     brew_fields = {
         "brew_style": "brews.brew_style",
         "grinder": "brews.grinder",
         "grind_setting": "brews.grind_setting",
+        "logged_by_user": "brews.logged_by_user",
     }
     for field, column in {**bag_fields, **brew_fields}.items():
         value = args.get(field)
@@ -633,6 +787,7 @@ def fetch_brews(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
             brews.rating,
             brews.brew_style,
             brews.grinder,
+            brews.logged_by_user,
             brews.grind_setting,
             brews.notes,
             brews.dose_g,
@@ -652,6 +807,7 @@ def fetch_brews(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
             bags.country,
             bags.location,
             bags.process,
+            bags.owner_user,
             bags.latitude,
             bags.longitude,
             bags.altitude_m,
@@ -784,19 +940,34 @@ def fetch_bag_detail(bag_id: int) -> sqlite3.Row | None:
     return row
 
 
-def fetch_bag_summary() -> list[sqlite3.Row]:
+def fetch_bag_summary(user: str | None = None) -> list[sqlite3.Row]:
     conn = get_db()
-    rows = conn.execute(
+    where = ""
+    params: list[Any] = []
+    if user in ALLOWED_USERS:
+        where = """
+        WHERE bags.owner_user = ?
+           OR EXISTS (
+               SELECT 1 FROM brews b2
+               WHERE b2.bag_id = bags.id AND b2.logged_by_user = ?
+           )
         """
+        params = [user, user]
+    rows = conn.execute(
+        f"""
         SELECT
             bags.*,
             COUNT(brews.id) AS brew_count,
-            AVG(brews.rating) AS avg_rating
+            AVG(brews.rating) AS avg_rating,
+            SUM(CASE WHEN brews.logged_by_user = 'Nicholas' THEN 1 ELSE 0 END) AS nicholas_brews,
+            SUM(CASE WHEN brews.logged_by_user = 'Belinda' THEN 1 ELSE 0 END) AS belinda_brews
         FROM bags
         LEFT JOIN brews ON brews.bag_id = bags.id
+        {where}
         GROUP BY bags.id
         ORDER BY bags.created_at DESC
-        """
+        """,
+        params,
     ).fetchall()
     conn.close()
     return rows
@@ -862,6 +1033,42 @@ def fetch_bags_for_equator(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
     return rows
 
 
+def insert_bag(conn: sqlite3.Connection, bag_data: dict[str, Any], photo: Any = None) -> int:
+    continent = continent_from_latlon(bag_data["latitude"], bag_data["longitude"])
+    cursor = conn.execute(
+        """
+        INSERT INTO bags (
+            coffee_name, brand, varietal, flavours, country, location, process,
+            latitude, longitude, altitude_m, continent, owner_user, photo_path, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            bag_data["coffee_name"],
+            bag_data["brand"],
+            bag_data["varietal"],
+            bag_data["flavours"],
+            bag_data["country"],
+            bag_data["location"],
+            bag_data["process"],
+            bag_data["latitude"],
+            bag_data["longitude"],
+            bag_data["altitude_m"],
+            continent,
+            bag_data["owner_user"],
+            None,
+            datetime.utcnow().isoformat(timespec="seconds"),
+        ),
+    )
+    bag_id = int(cursor.lastrowid)
+    photo_path = save_bag_photo(bag_id, photo)
+    if photo_path:
+        conn.execute(
+            "UPDATE bags SET photo_path = ? WHERE id = ?",
+            (photo_path, bag_id),
+        )
+    return bag_id
+
+
 def save_bag_photo(bag_id: int, photo_file: Any) -> str | None:
     if not photo_file or not photo_file.filename:
         return None
@@ -893,87 +1100,63 @@ def add_coffee() -> Any:
     bag_options = fetch_bag_options()
     bag_options_data = [dict(row) for row in bag_options]
     selected_bag_id = request.args.get("bag_id") or request.form.get("bag_id")
+    selected_entry_mode = request.form.get("entry_mode", "brew")
     if request.method == "POST":
-        creating_new = request.form.get("create_bag") == "true"
+        selected_entry_mode = request.form.get("entry_mode", "brew")
+        bag_only_mode = selected_entry_mode == "bag"
         bag_id = parse_optional_int(selected_bag_id)
         bag_data: dict[str, Any] = {}
         errors: list[str] = []
-        if creating_new or not bag_id:
+        if bag_only_mode:
             bag_data, errors = validate_bag_payload(request.form)
-        brew_data, brew_errors = validate_brew_payload(request.form)
-        errors.extend(brew_errors)
+        if not bag_only_mode and not bag_id:
+            errors.append("Select an existing bag.")
+        brew_data: dict[str, Any] = {}
+        if not bag_only_mode:
+            brew_data, brew_errors = validate_brew_payload(request.form)
+            errors.extend(brew_errors)
 
         if errors:
             for error in errors:
                 flash(error, "error")
         else:
             conn = get_db()
-            if creating_new or not bag_id:
-                continent = continent_from_latlon(bag_data["latitude"], bag_data["longitude"])
-                cursor = conn.execute(
+            if bag_only_mode:
+                bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
+            else:
+                conn.execute(
                     """
-                    INSERT INTO bags (
-                        coffee_name, brand, varietal, flavours, country, location, process,
-                        latitude, longitude, altitude_m, continent, photo_path, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO brews (
+                        bag_id, date, rating, brew_style, grinder, logged_by_user,
+                        grind_setting, notes, dose_g, water_ml, temp_c,
+                        total_brew_s, pour_time_s, bloom_water_ml, bloom_time_s,
+                        agitation, recipe_notes, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
-                        bag_data["coffee_name"],
-                        bag_data["brand"],
-                        bag_data["varietal"],
-                        bag_data["flavours"],
-                        bag_data["country"],
-                        bag_data["location"],
-                        bag_data["process"],
-                        bag_data["latitude"],
-                        bag_data["longitude"],
-                        bag_data["altitude_m"],
-                        continent,
-                        None,
+                        bag_id,
+                        brew_data["date"],
+                        brew_data["rating"],
+                        brew_data["brew_style"],
+                        brew_data["grinder"],
+                        brew_data["logged_by_user"],
+                        brew_data["grind_setting"],
+                        brew_data["notes"],
+                        brew_data["dose_g"],
+                        brew_data["water_ml"],
+                        brew_data["temp_c"],
+                        brew_data["total_brew_s"],
+                        brew_data["pour_time_s"],
+                        brew_data["bloom_water_ml"],
+                        brew_data["bloom_time_s"],
+                        brew_data["agitation"],
+                        brew_data["recipe_notes"],
                         datetime.utcnow().isoformat(timespec="seconds"),
                     ),
                 )
-                bag_id = cursor.lastrowid
-                photo = request.files.get("bag_photo")
-                photo_path = save_bag_photo(bag_id, photo)
-                if photo_path:
-                    conn.execute(
-                        "UPDATE bags SET photo_path = ? WHERE id = ?",
-                        (photo_path, bag_id),
-                    )
-
-            conn.execute(
-                """
-                INSERT INTO brews (
-                    bag_id, date, rating, brew_style, grinder,
-                    grind_setting, notes, dose_g, water_ml, temp_c,
-                    total_brew_s, pour_time_s, bloom_water_ml, bloom_time_s,
-                    agitation, recipe_notes, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    bag_id,
-                    brew_data["date"],
-                    brew_data["rating"],
-                    brew_data["brew_style"],
-                    brew_data["grinder"],
-                    brew_data["grind_setting"],
-                    brew_data["notes"],
-                    brew_data["dose_g"],
-                    brew_data["water_ml"],
-                    brew_data["temp_c"],
-                    brew_data["total_brew_s"],
-                    brew_data["pour_time_s"],
-                    brew_data["bloom_water_ml"],
-                    brew_data["bloom_time_s"],
-                    brew_data["agitation"],
-                    brew_data["recipe_notes"],
-                    datetime.utcnow().isoformat(timespec="seconds"),
-                ),
-            )
             conn.commit()
             conn.close()
-            flash("Brew logged successfully.", "success")
+            flash("Bag added successfully." if bag_only_mode else "Brew logged successfully.", "success")
             return redirect(url_for("bag_detail", bag_id=bag_id))
 
     return render_template(
@@ -982,11 +1165,13 @@ def add_coffee() -> Any:
         aergrind_settings=AERGRIND_SETTINGS,
         belinda_settings=BELINDA_SETTINGS,
         brew_styles=ALLOWED_BREW_STYLES,
+        users=ALLOWED_USERS,
         processes=ALLOWED_PROCESSES,
         today_date=datetime.now().date().isoformat(),
         bag_options=bag_options,
         bag_options_data=bag_options_data,
         selected_bag_id=selected_bag_id,
+        selected_entry_mode=selected_entry_mode,
     )
 
 
@@ -1042,17 +1227,9 @@ def log() -> Any:
         "log.html",
         coffees=coffees,
         entry_id=entry_id,
+        allow_demo_seed=app.config["ALLOW_DEMO_SEED"],
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-            "brew_style": get_distinct_values("brew_style"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=True),
     )
 
 
@@ -1072,34 +1249,16 @@ def map_view() -> Any:
     ]
     latest_brew_id = None
     if bag_id:
-        conn = get_db()
-        row = conn.execute(
-            """
-            SELECT id FROM brews
-            WHERE bag_id = ?
-            ORDER BY date DESC, created_at DESC
-            LIMIT 1
-            """,
-            (bag_id,),
-        ).fetchone()
-        conn.close()
-        if row:
-            latest_brew_id = row["id"]
+        try:
+            latest_brew_id = fetch_latest_brew_id_for_bag(int(bag_id))
+        except ValueError:
+            latest_brew_id = None
     return render_template(
         "map.html",
         coffees=json.dumps(coffees),
         latest_brew_id=latest_brew_id,
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-            "brew_style": get_distinct_values("brew_style"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=True),
     )
 
 
@@ -1116,16 +1275,7 @@ def altitude_view() -> Any:
         "altitude.html",
         coffees=json.dumps(coffees),
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-            "brew_style": get_distinct_values("brew_style"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=True),
     )
 
 
@@ -1142,23 +1292,16 @@ def equator_view() -> Any:
         "equator.html",
         bags=json.dumps(bags),
         build_query=build_query,
-        distinct_values={
-            "coffee_name": get_distinct_values("coffee_name"),
-            "brand": get_distinct_values("brand"),
-            "varietal": get_distinct_values("varietal"),
-            "continent": get_distinct_values("continent"),
-            "country": get_distinct_values("country"),
-            "location": get_distinct_values("location"),
-            "process": get_distinct_values("process"),
-        },
+        distinct_values=build_distinct_values(include_brew_fields=False),
     )
 
 
 @app.route("/bags")
 def bags_view() -> Any:
     init_db()
-    bags = fetch_bag_summary()
-    return render_template("bags.html", bags=bags)
+    user = request.args.get("user")
+    bags = fetch_bag_summary(user)
+    return render_template("bags.html", bags=bags, users=ALLOWED_USERS, selected_user=user)
 
 
 @app.route("/bags/<int:bag_id>")
@@ -1171,12 +1314,14 @@ def bag_detail(bag_id: int) -> Any:
     brews = fetch_brews_for_bag(bag_id)
     grind_insights = fetch_grind_insights(bag_id)
     latest_brew_id = brews[0]["id"] if brews else None
+    dial_in_assistant = build_dial_in_assistant(brews)
     return render_template(
         "bag_detail.html",
         bag=bag,
         brews=brews,
         grind_insights=grind_insights,
         latest_brew_id=latest_brew_id,
+        dial_in_assistant=dial_in_assistant,
     )
 
 
@@ -1619,6 +1764,9 @@ def reverse_geocode() -> Any:
 
 @app.route("/seed", methods=["POST"])
 def seed_route() -> Any:
+    if not app.config["ALLOW_DEMO_SEED"]:
+        flash("Seeding is disabled in this environment.", "error")
+        return redirect(url_for("bags_view"))
     from seed import seed_data
 
     init_db()

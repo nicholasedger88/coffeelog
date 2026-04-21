@@ -18,7 +18,7 @@
 
 body {
   margin: 0;
-  font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   color: var(--text);
   background: var(--bg);
   font-size: 14px;
@@ -95,6 +95,11 @@ nav a:focus {
   font-size: 13px;
 }
 
+.page-header p,
+.section-header p {
+  display: none;
+}
+
 .form-card {
   padding: 18px 20px;
 }
@@ -103,6 +108,44 @@ nav a:focus {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+.mode-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.mode-option {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+  background: #fff;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mode-option.is-active {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.mode-option:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+.mode-option span {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.mode-option small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .section-header h3,
@@ -305,6 +348,34 @@ textarea {
   margin-top: 8px;
 }
 
+.dial-in-assistant {
+  margin-top: 16px;
+}
+
+.assistant-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.assistant-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 4px;
+}
+
+.assistant-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.assistant-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .toggle-icon {
   font-size: 12px;
   color: var(--muted);
@@ -486,7 +557,7 @@ button.secondary,
 
 .leaflet-popup-content {
   margin: 10px 12px;
-  font-family: "Space Grotesk", "Helvetica Neue", Arial, sans-serif;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
   font-size: 12px;
   line-height: 1.4;
   color: var(--text);
@@ -926,8 +997,12 @@ button.secondary,
   gap: 16px;
 }
 
+.bag-card .detail-grid {
+  gap: 10px;
+}
+
 .bag-meta {
-  margin-top: 8px;
+  margin-top: 14px;
   display: flex;
   gap: 12px;
   color: var(--muted);
@@ -967,14 +1042,22 @@ button.secondary,
   margin-top: var(--space-xl);
 }
 
+.brew-list .section-header {
+  margin-bottom: 14px;
+}
+
+.brew-list .stats-detail-list {
+  gap: 16px;
+}
+
 .stats-entry {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 16px;
-  flex-wrap: wrap;
 }
 
 .stats-entry h3 {
@@ -997,7 +1080,9 @@ button.secondary,
 .stats-entry-actions {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
+  justify-content: flex-end;
+  font-size: 12px;
+  align-self: end;
 }
 
 .brew-entry {
@@ -1028,6 +1113,31 @@ button.secondary,
 .brew-entry-style {
   font-weight: 600;
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.brew-style-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: grayscale(1) brightness(0);
+}
+
+.brew-style-icon--v60 {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M6 3h12l-2 5-3 13h-2L8 8z'/%3E%3C/svg%3E");
+}
+
+.brew-style-icon--moka {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 3h8l2 6-2 10H8L6 9zM5 9h2v8H5zM18 9h1.5A2.5 2.5 0 0 1 22 11.5v2A2.5 2.5 0 0 1 19.5 16H18z'/%3E%3C/svg%3E");
+}
+
+.brew-style-icon--aeropress {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 2h8v3H8zm1 4h6l1 12H8zm-1 12h8v2H8zm10-10h3v5h-3z'/%3E%3C/svg%3E");
 }
 
 .brew-entry-block + .brew-entry-block {
@@ -1236,6 +1346,14 @@ button.secondary,
   .stats-detail-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .stats-entry {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-entry-actions {
+    justify-content: flex-start;
   }
 
   .bag-summary {

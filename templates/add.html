@@ -10,7 +10,37 @@
 
 <section class="card form-card">
   <form method="post" class="coffee-form" enctype="multipart/form-data">
-    <div class="form-section">
+    <div class="form-section entry-mode" id="entry-mode-section">
+      <div class="section-header">
+        <h3>What do you want to add?</h3>
+        <p>Choose one path to keep the form focused.</p>
+      </div>
+      <input type="hidden" name="entry_mode" id="entry-mode-input" value="{{ selected_entry_mode if selected_entry_mode else 'brew' }}" />
+      <div class="mode-options">
+        <button type="button" class="mode-option{% if selected_entry_mode != 'bag' %} is-active{% endif %}" data-mode="brew">
+          <span>Log a brew</span>
+          <small>Use an existing bag.</small>
+        </button>
+        <button type="button" class="mode-option{% if selected_entry_mode == 'bag' %} is-active{% endif %}" data-mode="bag">
+          <span>Add a bag only</span>
+          <small>Create a bag now and log brews later.</small>
+        </button>
+      </div>
+      <div class="form-grid">
+        <label>
+          Log as
+          <select name="log_as" required>
+            {% for user in users %}
+              <option value="{{ user }}" {% if request.form.get('log_as', users[0]) == user %}selected{% endif %}>{{ user }}</option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="form-section" id="select-bag-section">
       <div class="section-header">
         <h3>Select bag</h3>
         <p>Pick an existing bag or create a new one.</p>
@@ -34,10 +64,6 @@
           </datalist>
         </label>
         <input type="hidden" name="bag_id" id="bag-id" value="{{ selected_bag_id or '' }}" />
-        <label class="checkbox">
-          <input type="checkbox" name="create_bag" value="true" id="create-bag-toggle" />
-          Create new bag
-        </label>
       </div>
     </div>
 
@@ -133,7 +159,7 @@
 
     <div class="divider"></div>
 
-    <div class="form-section">
+    <div class="form-section" id="brew-details-section">
       <div class="section-header">
         <h3>Brew details</h3>
         <p>Track this attempt with dial-in notes.</p>
@@ -249,7 +275,15 @@
     </div>
 
     <div class="form-actions">
-      <button type="submit" class="primary">Save brew</button>
+      <button
+        type="submit"
+        class="primary"
+        data-bag-label="Save bag"
+        data-brew-label="Save brew"
+        id="submit-entry"
+      >
+        {% if selected_entry_mode == "bag" %}Save bag{% else %}Save brew{% endif %}
+      </button>
     </div>
   </form>
 </section>
