@@ -109,6 +109,17 @@ def format_duration(seconds: int | float | None) -> str:
     return f"{minutes}:{remaining:02d}"
 
 
+@app.template_filter("format_clock")
+def format_clock(seconds: int | float | None) -> str:
+    if seconds is None:
+        return ""
+    total = int(round(seconds))
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    remaining = total % 60
+    return f"{hours:02d}:{minutes:02d}:{remaining:02d}"
+
+
 @app.template_filter("recipe_summary")
 def recipe_summary(brew: sqlite3.Row | dict[str, Any]) -> str:
     def get_value(key: str) -> Any:
@@ -260,6 +271,17 @@ CREATE TABLE IF NOT EXISTS brews (
     created_at TEXT NOT NULL,
     FOREIGN KEY (bag_id) REFERENCES bags(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS brew_steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    brew_id INTEGER NOT NULL,
+    step_order INTEGER NOT NULL,
+    start_seconds INTEGER NOT NULL,
+    end_seconds INTEGER NOT NULL,
+    label_text TEXT,
+    liquid_text TEXT,
+    FOREIGN KEY (brew_id) REFERENCES brews(id) ON DELETE CASCADE
+);
 """
 
 
@@ -274,6 +296,7 @@ def init_db() -> None:
     conn.executescript(SCHEMA_SQL)
     migrate_bags_schema(conn)
     migrate_brews_schema(conn)
+    migrate_brew_steps_schema(conn)
     conn.commit()
     conn.close()
 
@@ -325,6 +348,77 @@ def migrate_brews_schema(conn: sqlite3.Connection) -> None:
         "UPDATE brews SET logged_by_user = COALESCE(logged_by_user, 'Nicholas') WHERE logged_by_user IS NULL OR logged_by_user = ''"
     )
 
+
+
+
+def migrate_brew_steps_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS brew_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            brew_id INTEGER NOT NULL,
+            step_order INTEGER NOT NULL,
+            start_seconds INTEGER NOT NULL,
+            end_seconds INTEGER NOT NULL,
+            label_text TEXT,
+            liquid_text TEXT,
+            FOREIGN KEY (brew_id) REFERENCES brews(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_brew_steps_brew_order
+        ON brew_steps (brew_id, step_order)
+        """
+    )
+
+
+def parse_brew_steps(raw_steps: str | None) -> tuple[list[dict[str, Any]], list[str]]:
+    if not raw_steps:
+        return [], []
+    errors: list[str] = []
+    try:
+        payload = json.loads(raw_steps)
+    except json.JSONDecodeError:
+        return [], ["Brew recorder data is invalid."]
+    if not isinstance(payload, list):
+        return [], ["Brew recorder data is invalid."]
+
+    parsed_steps: list[dict[str, Any]] = []
+    previous_end = 0
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            errors.append("Brew recorder step format is invalid.")
+            continue
+        start_raw = item.get("start_seconds")
+        end_raw = item.get("end_seconds")
+        if not isinstance(start_raw, int) or not isinstance(end_raw, int):
+            errors.append(f"Step {index} has invalid timing data.")
+            continue
+        if start_raw < 0 or end_raw < 0 or end_raw <= start_raw:
+            errors.append(f"Step {index} timing must be positive and increasing.")
+            continue
+        if start_raw < previous_end:
+            errors.append(f"Step {index} starts before the previous step ends.")
+            continue
+        if end_raw > 36000:
+            errors.append(f"Step {index} timing is too long.")
+            continue
+        label_text = str(item.get("label_text", "")).strip()[:200]
+        liquid_text = str(item.get("liquid_text", "")).strip()[:120]
+        parsed_steps.append(
+            {
+                "step_order": index,
+                "start_seconds": start_raw,
+                "end_seconds": end_raw,
+                "label_text": label_text,
+                "liquid_text": liquid_text,
+            }
+        )
+        previous_end = end_raw
+
+    return parsed_steps, errors
 
 def normalize_flavours(raw: str) -> str:
     parts = [part.strip() for part in raw.split(",") if part.strip()]
@@ -989,6 +1083,27 @@ def fetch_brews_for_bag(bag_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def fetch_steps_for_brew_ids(brew_ids: list[int]) -> dict[int, list[sqlite3.Row]]:
+    if not brew_ids:
+        return {}
+    placeholders = ",".join(["?" for _ in brew_ids])
+    conn = get_db()
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM brew_steps
+        WHERE brew_id IN ({placeholders})
+        ORDER BY brew_id, step_order ASC
+        """,
+        brew_ids,
+    ).fetchall()
+    conn.close()
+    grouped: dict[int, list[sqlite3.Row]] = {}
+    for row in rows:
+        grouped.setdefault(row["brew_id"], []).append(row)
+    return grouped
+
+
 def fetch_grind_insights(bag_id: int) -> list[sqlite3.Row]:
     conn = get_db()
     rows = conn.execute(
@@ -1112,9 +1227,12 @@ def add_coffee() -> Any:
         if not bag_only_mode and not bag_id:
             errors.append("Select an existing bag.")
         brew_data: dict[str, Any] = {}
+        brew_steps: list[dict[str, Any]] = []
         if not bag_only_mode:
             brew_data, brew_errors = validate_brew_payload(request.form)
             errors.extend(brew_errors)
+            brew_steps, step_errors = parse_brew_steps(request.form.get("brew_steps_json"))
+            errors.extend(step_errors)
 
         if errors:
             for error in errors:
@@ -1124,7 +1242,7 @@ def add_coffee() -> Any:
             if bag_only_mode:
                 bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
             else:
-                conn.execute(
+                brew_cursor = conn.execute(
                     """
                     INSERT INTO brews (
                         bag_id, date, rating, brew_style, grinder, logged_by_user,
@@ -1154,6 +1272,23 @@ def add_coffee() -> Any:
                         datetime.utcnow().isoformat(timespec="seconds"),
                     ),
                 )
+                brew_id = int(brew_cursor.lastrowid)
+                for step in brew_steps:
+                    conn.execute(
+                        """
+                        INSERT INTO brew_steps (
+                            brew_id, step_order, start_seconds, end_seconds, label_text, liquid_text
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            brew_id,
+                            step["step_order"],
+                            step["start_seconds"],
+                            step["end_seconds"],
+                            step["label_text"],
+                            step["liquid_text"],
+                        ),
+                    )
             conn.commit()
             conn.close()
             flash("Bag added successfully." if bag_only_mode else "Brew logged successfully.", "success")
@@ -1313,6 +1448,7 @@ def bag_detail(bag_id: int) -> Any:
         return redirect(url_for("bags_view"))
     brews = fetch_brews_for_bag(bag_id)
     grind_insights = fetch_grind_insights(bag_id)
+    brew_steps_by_brew = fetch_steps_for_brew_ids([int(brew["id"]) for brew in brews])
     latest_brew_id = brews[0]["id"] if brews else None
     dial_in_assistant = build_dial_in_assistant(brews)
     return render_template(
@@ -1320,6 +1456,7 @@ def bag_detail(bag_id: int) -> Any:
         bag=bag,
         brews=brews,
         grind_insights=grind_insights,
+        brew_steps_by_brew=brew_steps_by_brew,
         latest_brew_id=latest_brew_id,
         dial_in_assistant=dial_in_assistant,
     )
