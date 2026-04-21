@@ -925,6 +925,155 @@ const setupOriginMaps = () => {
   originMaps.forEach((el) => observer.observe(el));
 };
 
+const setupBrewRecorder = () => {
+  const recorder = document.getElementById("brew-recorder");
+  if (!recorder) return;
+  const timeEl = document.getElementById("brew-recorder-time");
+  const toggleBtn = document.getElementById("brew-recorder-toggle");
+  const stepBtn = document.getElementById("brew-recorder-step");
+  const resetBtn = document.getElementById("brew-recorder-reset");
+  const stepsBody = document.getElementById("brew-steps-body");
+  const hiddenInput = document.getElementById("brew-steps-json");
+  if (!timeEl || !toggleBtn || !stepBtn || !resetBtn || !stepsBody || !hiddenInput) return;
+
+  let startedAt = null;
+  let elapsedMs = 0;
+  let timer = null;
+  let lastStepSecond = 0;
+  let steps = [];
+
+  const formatClock = (seconds) => {
+    const h = Math.floor(seconds / 3600)
+      .toString()
+      .padStart(2, "0");
+    const m = Math.floor((seconds % 3600) / 60)
+      .toString()
+      .padStart(2, "0");
+    const s = Math.floor(seconds % 60)
+      .toString()
+      .padStart(2, "0");
+    return `${h}:${m}:${s}`;
+  };
+
+  const getElapsedMs = () => {
+    if (!startedAt) return elapsedMs;
+    return elapsedMs + (Date.now() - startedAt);
+  };
+
+  const currentSeconds = () => Math.floor(getElapsedMs() / 1000);
+
+  const syncHiddenInput = () => {
+    hiddenInput.value = JSON.stringify(
+      steps.map((step) => ({
+        start_seconds: step.start_seconds,
+        end_seconds: step.end_seconds,
+        label_text: step.label_text || "",
+        liquid_text: step.liquid_text || "",
+      }))
+    );
+  };
+
+  const renderSteps = () => {
+    stepsBody.innerHTML = "";
+    if (!steps.length) {
+      const row = document.createElement("tr");
+      row.className = "brew-steps-empty";
+      row.innerHTML = '<td colspan="5">No steps recorded yet.</td>';
+      stepsBody.appendChild(row);
+      syncHiddenInput();
+      return;
+    }
+    steps.forEach((step, index) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td>${formatClock(step.start_seconds)}</td>
+        <td>${formatClock(step.end_seconds)}</td>
+        <td><input type="text" value="${step.label_text || ""}" placeholder="e.g. bloom" data-field="label_text" data-index="${index}" /></td>
+        <td><input type="text" value="${step.liquid_text || ""}" placeholder="e.g. 35ml" data-field="liquid_text" data-index="${index}" /></td>
+        <td><button type="button" class="text-link" data-action="delete" data-index="${index}">Delete</button></td>
+      `;
+      stepsBody.appendChild(row);
+    });
+    syncHiddenInput();
+  };
+
+  const tick = () => {
+    timeEl.textContent = formatClock(currentSeconds());
+  };
+
+  toggleBtn.addEventListener("click", () => {
+    if (startedAt) {
+      elapsedMs = getElapsedMs();
+      startedAt = null;
+      if (timer) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+      toggleBtn.textContent = "Resume";
+      stepBtn.disabled = true;
+      return;
+    }
+    startedAt = Date.now();
+    if (!timer) {
+      timer = window.setInterval(tick, 200);
+    }
+    toggleBtn.textContent = "Pause";
+    stepBtn.disabled = false;
+    tick();
+  });
+
+  stepBtn.addEventListener("click", () => {
+    const endSeconds = currentSeconds();
+    if (endSeconds <= lastStepSecond) return;
+    steps.push({
+      start_seconds: lastStepSecond,
+      end_seconds: endSeconds,
+      label_text: "",
+      liquid_text: "",
+    });
+    lastStepSecond = endSeconds;
+    renderSteps();
+  });
+
+  resetBtn.addEventListener("click", () => {
+    startedAt = null;
+    elapsedMs = 0;
+    lastStepSecond = 0;
+    steps = [];
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    timeEl.textContent = "00:00:00";
+    toggleBtn.textContent = "Start";
+    stepBtn.disabled = true;
+    renderSteps();
+  });
+
+  stepsBody.addEventListener("input", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLInputElement)) return;
+    const index = Number(target.dataset.index);
+    const field = target.dataset.field;
+    if (!Number.isInteger(index) || !steps[index] || !field) return;
+    steps[index][field] = target.value;
+    syncHiddenInput();
+  });
+
+  stepsBody.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (target.dataset.action !== "delete") return;
+    const index = Number(target.dataset.index);
+    if (!Number.isInteger(index) || !steps[index]) return;
+    steps.splice(index, 1);
+    lastStepSecond = steps.length ? steps[steps.length - 1].end_seconds : 0;
+    renderSteps();
+  });
+
+  renderSteps();
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   setupAutocomplete();
   setupGrindSettings();
@@ -937,4 +1086,5 @@ document.addEventListener("DOMContentLoaded", () => {
   setupAltitudeChart();
   setupEquatorChart();
   setupOriginMaps();
+  setupBrewRecorder();
 });

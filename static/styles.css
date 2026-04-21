@@ -348,6 +348,57 @@ textarea {
   margin-top: 8px;
 }
 
+.brew-recorder {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.brew-recorder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brew-recorder-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+}
+
+.brew-recorder-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.brew-steps-table,
+.brew-steps-readonly {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.brew-steps-table th,
+.brew-steps-table td,
+.brew-steps-readonly th,
+.brew-steps-readonly td {
+  border-top: 1px solid var(--border);
+  padding: 6px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.brew-steps-table input {
+  width: 100%;
+  min-width: 120px;
+}
+
+.brew-steps-empty td {
+  color: var(--muted);
+}
+
 .dial-in-assistant {
   margin-top: 16px;
 }

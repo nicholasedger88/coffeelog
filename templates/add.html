@@ -215,6 +215,34 @@
           placeholder="What changed vs last time? Any taste notes (sour/bitter/sweet), extraction thoughts, grind visibly coarser/finer, etc."
         ></textarea>
       </label>
+      <div class="brew-recorder" id="brew-recorder">
+        <div class="brew-recorder-header">
+          <strong>Brew recorder</strong>
+          <span class="brew-recorder-time" id="brew-recorder-time">00:00:00</span>
+        </div>
+        <div class="brew-recorder-actions">
+          <button type="button" class="secondary" id="brew-recorder-toggle">Start</button>
+          <button type="button" class="secondary" id="brew-recorder-step" disabled>Record step</button>
+          <button type="button" class="secondary" id="brew-recorder-reset">Reset</button>
+        </div>
+        <input type="hidden" name="brew_steps_json" id="brew-steps-json" />
+        <table class="brew-steps-table" id="brew-steps-table">
+          <thead>
+            <tr>
+              <th>Start</th>
+              <th>End</th>
+              <th>Note</th>
+              <th>Liquid</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="brew-steps-body">
+            <tr class="brew-steps-empty">
+              <td colspan="5">No steps recorded yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div class="recipe-toggle" data-target="recipe-basics">
         <span>Want to log the recipe?</span>
         <span class="toggle-icon" aria-hidden="true">▾</span>
