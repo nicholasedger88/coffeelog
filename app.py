@@ -293,6 +293,21 @@ CREATE TABLE IF NOT EXISTS brew_steps (
     liquid_text TEXT,
     FOREIGN KEY (brew_id) REFERENCES brews(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS product_log_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    entry_kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'medium',
+    version_label TEXT,
+    entry_date TEXT,
+    summary TEXT,
+    testing_notes TEXT,
+    known_issues TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -308,6 +323,7 @@ def init_db() -> None:
     migrate_bags_schema(conn)
     migrate_brews_schema(conn)
     migrate_brew_steps_schema(conn)
+    migrate_product_log_schema(conn)
     conn.commit()
     conn.close()
 
@@ -381,6 +397,27 @@ def migrate_brew_steps_schema(conn: sqlite3.Connection) -> None:
         """
         CREATE UNIQUE INDEX IF NOT EXISTS idx_brew_steps_brew_order
         ON brew_steps (brew_id, step_order)
+        """
+    )
+
+
+def migrate_product_log_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_log_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            entry_kind TEXT NOT NULL,
+            status TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'medium',
+            version_label TEXT,
+            entry_date TEXT,
+            summary TEXT,
+            testing_notes TEXT,
+            known_issues TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
         """
     )
 
@@ -665,6 +702,60 @@ def validate_brew_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[st
     recipe_data, recipe_errors = parse_recipe_fields(form)
     data.update(recipe_data)
     errors.extend(recipe_errors)
+
+    return data, errors
+
+
+def parse_product_log_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
+    data: dict[str, Any] = {}
+
+    title = form.get("title", "").strip()
+    if not title:
+        errors.append("Title is required.")
+    data["title"] = title[:200]
+
+    entry_kind, kind_error = parse_allowed_choice(
+        form.get("entry_kind", "").strip(),
+        set(ALLOWED_PRODUCT_ENTRY_KINDS),
+        "Entry kind is invalid.",
+    )
+    if kind_error:
+        errors.append(kind_error)
+    data["entry_kind"] = entry_kind
+
+    status, status_error = parse_allowed_choice(
+        form.get("status", "").strip(),
+        set(ALLOWED_PRODUCT_STATUSES),
+        "Status is invalid.",
+    )
+    if status_error:
+        errors.append(status_error)
+    data["status"] = status
+
+    priority_raw = form.get("priority", "medium").strip() or "medium"
+    priority, priority_error = parse_allowed_choice(
+        priority_raw,
+        set(ALLOWED_PRODUCT_PRIORITIES),
+        "Priority must be low, medium, or high.",
+    )
+    if priority_error:
+        errors.append(priority_error)
+    data["priority"] = priority
+
+    data["version_label"] = form.get("version_label", "").strip()[:50]
+
+    entry_date = form.get("entry_date", "").strip()
+    if entry_date:
+        try:
+            datetime.strptime(entry_date, "%Y-%m-%d")
+        except ValueError:
+            errors.append("Entry date must be a valid YYYY-MM-DD date.")
+    data["entry_date"] = entry_date
+
+    data["summary"] = form.get("summary", "").strip()[:2000]
+    data["testing_notes"] = form.get("testing_notes", "").strip()[:2000]
+    data["known_issues"] = form.get("known_issues", "").strip()[:2000]
 
     return data, errors
 
