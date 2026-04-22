@@ -293,21 +293,6 @@ CREATE TABLE IF NOT EXISTS brew_steps (
     liquid_text TEXT,
     FOREIGN KEY (brew_id) REFERENCES brews(id) ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS product_log_entries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT NOT NULL,
-    entry_kind TEXT NOT NULL,
-    status TEXT NOT NULL,
-    priority TEXT NOT NULL DEFAULT 'medium',
-    version_label TEXT,
-    entry_date TEXT,
-    summary TEXT,
-    testing_notes TEXT,
-    known_issues TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
 """
 
 
@@ -323,7 +308,6 @@ def init_db() -> None:
     migrate_bags_schema(conn)
     migrate_brews_schema(conn)
     migrate_brew_steps_schema(conn)
-    migrate_product_log_schema(conn)
     conn.commit()
     conn.close()
 
@@ -446,71 +430,6 @@ def parse_brew_steps(raw_steps: str | None) -> tuple[list[dict[str, Any]], list[
         previous_end = end_raw
 
     return parsed_steps, errors
-
-
-def migrate_product_log_schema(conn: sqlite3.Connection) -> None:
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS product_log_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT NULL,
-            entry_kind TEXT NOT NULL,
-            status TEXT NOT NULL,
-            priority TEXT NOT NULL DEFAULT 'medium',
-            version_label TEXT,
-            entry_date TEXT,
-            summary TEXT,
-            testing_notes TEXT,
-            known_issues TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL
-        )
-        """
-    )
-
-
-def parse_product_log_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
-    errors: list[str] = []
-    data: dict[str, Any] = {}
-
-    title = form.get("title", "").strip()
-    if not title:
-        errors.append("Title is required.")
-    data["title"] = title
-
-    entry_kind, entry_kind_error = parse_allowed_choice(
-        form.get("entry_kind", "").strip(),
-        set(ALLOWED_PRODUCT_ENTRY_KINDS),
-        "Entry kind is required.",
-    )
-    if entry_kind_error:
-        errors.append(entry_kind_error)
-    data["entry_kind"] = entry_kind
-
-    status, status_error = parse_allowed_choice(
-        form.get("status", "").strip(),
-        set(ALLOWED_PRODUCT_STATUSES),
-        "Status is required.",
-    )
-    if status_error:
-        errors.append(status_error)
-    data["status"] = status
-
-    priority, priority_error = parse_allowed_choice(
-        form.get("priority", "medium").strip() or "medium",
-        set(ALLOWED_PRODUCT_PRIORITIES),
-        "Priority must be low, medium, or high.",
-    )
-    if priority_error:
-        errors.append(priority_error)
-    data["priority"] = priority
-
-    data["version_label"] = form.get("version_label", "").strip()
-    data["entry_date"] = form.get("entry_date", "").strip()
-    data["summary"] = form.get("summary", "").strip()
-    data["testing_notes"] = form.get("testing_notes", "").strip()
-    data["known_issues"] = form.get("known_issues", "").strip()
-    return data, errors
 
 def normalize_flavours(raw: str) -> str:
     parts = [part.strip() for part in raw.split(",") if part.strip()]
