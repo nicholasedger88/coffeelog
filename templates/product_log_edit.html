@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Edit Product Log Entry</h1>
+    <p>Update lifecycle details and notes.</p>
+  </div>
+  <a class="secondary" href="{{ url_for('product_log') }}">Back to Product Log</a>
+</section>
+
+<section class="card product-log-panel">
+  <form method="post" class="product-log-form">
+    <div class="form-grid">
+      <label>
+        Title *
+        <input type="text" name="title" required maxlength="200" value="{{ form_data.get('title', '') }}" />
+      </label>
+      <label>
+        Entry kind *
+        <select name="entry_kind" required>
+          {% for item in entry_kinds %}
+            <option value="{{ item }}" {% if form_data.get('entry_kind') == item %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Status *
+        <select name="status" required>
+          {% for item in statuses %}
+            <option value="{{ item }}" {% if form_data.get('status') == item %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Priority
+        <select name="priority">
+          {% for item in priorities %}
+            <option value="{{ item }}" {% if form_data.get('priority', 'medium') == item %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Version label
+        <input type="text" name="version_label" value="{{ form_data.get('version_label', '') }}" />
+      </label>
+      <label>
+        Entry date
+        <input type="date" name="entry_date" value="{{ form_data.get('entry_date', '') }}" />
+      </label>
+    </div>
+    <label>
+      Summary
+      <textarea name="summary" rows="4">{{ form_data.get('summary', '') }}</textarea>
+    </label>
+    <div class="form-grid">
+      <label>
+        Testing notes
+        <textarea name="testing_notes" rows="3">{{ form_data.get('testing_notes', '') }}</textarea>
+      </label>
+      <label>
+        Known issues
+        <textarea name="known_issues" rows="3">{{ form_data.get('known_issues', '') }}</textarea>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="primary">Save changes</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

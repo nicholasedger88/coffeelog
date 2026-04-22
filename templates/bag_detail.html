@@ -171,7 +171,20 @@
         <div class="brew-entry-block brew-entry-grind">
           {{ brew.grinder }} · {{ brew.grind_setting|format_grind(brew.grinder) }}
         </div>
-        <div class="brew-entry-block brew-entry-grind">Logged by: {{ brew.logged_by_user or "—" }}</div>
+        <div class="brew-entry-block brew-entry-grind">
+          Logged by:
+          {% if brew.logged_by_user %}
+            <span class="user-chip">
+              <span
+                class="user-icon {% if brew.logged_by_user == 'Nicholas' %}user-icon--nicholas{% elif brew.logged_by_user == 'Belinda' %}user-icon--belinda{% else %}user-icon--default{% endif %}"
+                aria-hidden="true"
+              ></span>
+              {{ brew.logged_by_user }}
+            </span>
+          {% else %}
+            —
+          {% endif %}
+        </div>
         <div class="brew-entry-block brew-entry-rating">Rating: {{ brew.rating }} / 5</div>
         {% if brew.notes %}
           <div class="brew-entry-block brew-entry-notes notes-block">
@@ -261,6 +274,32 @@
             </div>
           {% endif %}
         </div>
+        {% set brew_steps = brew_steps_by_brew.get(brew.id, []) %}
+        {% if brew_steps %}
+          <div class="brew-entry-block brew-entry-steps">
+            <div class="recipe-summary-line">Brew steps</div>
+            <table class="brew-steps-readonly">
+              <thead>
+                <tr>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Note</th>
+                  <th>Liquid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for step in brew_steps %}
+                  <tr>
+                    <td>{{ step.start_seconds|format_clock }}</td>
+                    <td>{{ step.end_seconds|format_clock }}</td>
+                    <td>{{ step.label_text or "—" }}</td>
+                    <td>{{ step.liquid_text or "—" }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
         <footer class="brew-entry-footer">
           <a class="text-link" href="{{ url_for('log') }}?entry_id={{ brew.id }}">View entry</a>
         </footer>

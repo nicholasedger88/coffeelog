@@ -28,6 +28,17 @@ BELINDA_SETTINGS = [str(i) for i in range(1, 13)]
 ALLOWED_BREW_STYLES = ["Aeropress", "Moka pot", "V60"]
 ALLOWED_USERS = ["Nicholas", "Belinda"]
 ALLOWED_PROCESSES = ["washed", "natural", "anaerobic", "honey", "experimental"]
+ALLOWED_PRODUCT_ENTRY_KINDS = ["idea", "feature", "bug", "refinement", "release_note"]
+ALLOWED_PRODUCT_STATUSES = [
+    "idea",
+    "planned",
+    "in_progress",
+    "blocked",
+    "tested",
+    "live",
+    "archived",
+]
+ALLOWED_PRODUCT_PRIORITIES = ["low", "medium", "high"]
 ELEVATION_API = "https://api.open-elevation.com/api/v1/lookup"
 COUNTRY_CODES = {
     "Brazil": "BR",
@@ -107,6 +118,17 @@ def format_duration(seconds: int | float | None) -> str:
     minutes = total // 60
     remaining = total % 60
     return f"{minutes}:{remaining:02d}"
+
+
+@app.template_filter("format_clock")
+def format_clock(seconds: int | float | None) -> str:
+    if seconds is None:
+        return ""
+    total = int(round(seconds))
+    hours = total // 3600
+    minutes = (total % 3600) // 60
+    remaining = total % 60
+    return f"{hours:02d}:{minutes:02d}:{remaining:02d}"
 
 
 @app.template_filter("recipe_summary")
@@ -260,6 +282,32 @@ CREATE TABLE IF NOT EXISTS brews (
     created_at TEXT NOT NULL,
     FOREIGN KEY (bag_id) REFERENCES bags(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS brew_steps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    brew_id INTEGER NOT NULL,
+    step_order INTEGER NOT NULL,
+    start_seconds INTEGER NOT NULL,
+    end_seconds INTEGER NOT NULL,
+    label_text TEXT,
+    liquid_text TEXT,
+    FOREIGN KEY (brew_id) REFERENCES brews(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS product_log_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    entry_kind TEXT NOT NULL,
+    status TEXT NOT NULL,
+    priority TEXT NOT NULL DEFAULT 'medium',
+    version_label TEXT,
+    entry_date TEXT,
+    summary TEXT,
+    testing_notes TEXT,
+    known_issues TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -274,6 +322,8 @@ def init_db() -> None:
     conn.executescript(SCHEMA_SQL)
     migrate_bags_schema(conn)
     migrate_brews_schema(conn)
+    migrate_brew_steps_schema(conn)
+    migrate_product_log_schema(conn)
     conn.commit()
     conn.close()
 
@@ -325,6 +375,142 @@ def migrate_brews_schema(conn: sqlite3.Connection) -> None:
         "UPDATE brews SET logged_by_user = COALESCE(logged_by_user, 'Nicholas') WHERE logged_by_user IS NULL OR logged_by_user = ''"
     )
 
+
+
+
+def migrate_brew_steps_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS brew_steps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            brew_id INTEGER NOT NULL,
+            step_order INTEGER NOT NULL,
+            start_seconds INTEGER NOT NULL,
+            end_seconds INTEGER NOT NULL,
+            label_text TEXT,
+            liquid_text TEXT,
+            FOREIGN KEY (brew_id) REFERENCES brews(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_brew_steps_brew_order
+        ON brew_steps (brew_id, step_order)
+        """
+    )
+
+
+def parse_brew_steps(raw_steps: str | None) -> tuple[list[dict[str, Any]], list[str]]:
+    if not raw_steps:
+        return [], []
+    errors: list[str] = []
+    try:
+        payload = json.loads(raw_steps)
+    except json.JSONDecodeError:
+        return [], ["Brew recorder data is invalid."]
+    if not isinstance(payload, list):
+        return [], ["Brew recorder data is invalid."]
+
+    parsed_steps: list[dict[str, Any]] = []
+    previous_end = 0
+    for index, item in enumerate(payload, start=1):
+        if not isinstance(item, dict):
+            errors.append("Brew recorder step format is invalid.")
+            continue
+        start_raw = item.get("start_seconds")
+        end_raw = item.get("end_seconds")
+        if not isinstance(start_raw, int) or not isinstance(end_raw, int):
+            errors.append(f"Step {index} has invalid timing data.")
+            continue
+        if start_raw < 0 or end_raw < 0 or end_raw <= start_raw:
+            errors.append(f"Step {index} timing must be positive and increasing.")
+            continue
+        if start_raw < previous_end:
+            errors.append(f"Step {index} starts before the previous step ends.")
+            continue
+        if end_raw > 36000:
+            errors.append(f"Step {index} timing is too long.")
+            continue
+        label_text = str(item.get("label_text", "")).strip()[:200]
+        liquid_text = str(item.get("liquid_text", "")).strip()[:120]
+        parsed_steps.append(
+            {
+                "step_order": index,
+                "start_seconds": start_raw,
+                "end_seconds": end_raw,
+                "label_text": label_text,
+                "liquid_text": liquid_text,
+            }
+        )
+        previous_end = end_raw
+
+    return parsed_steps, errors
+
+
+def migrate_product_log_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_log_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            entry_kind TEXT NOT NULL,
+            status TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'medium',
+            version_label TEXT,
+            entry_date TEXT,
+            summary TEXT,
+            testing_notes TEXT,
+            known_issues TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+
+
+def parse_product_log_payload(form: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+    errors: list[str] = []
+    data: dict[str, Any] = {}
+
+    title = form.get("title", "").strip()
+    if not title:
+        errors.append("Title is required.")
+    data["title"] = title
+
+    entry_kind, entry_kind_error = parse_allowed_choice(
+        form.get("entry_kind", "").strip(),
+        set(ALLOWED_PRODUCT_ENTRY_KINDS),
+        "Entry kind is required.",
+    )
+    if entry_kind_error:
+        errors.append(entry_kind_error)
+    data["entry_kind"] = entry_kind
+
+    status, status_error = parse_allowed_choice(
+        form.get("status", "").strip(),
+        set(ALLOWED_PRODUCT_STATUSES),
+        "Status is required.",
+    )
+    if status_error:
+        errors.append(status_error)
+    data["status"] = status
+
+    priority, priority_error = parse_allowed_choice(
+        form.get("priority", "medium").strip() or "medium",
+        set(ALLOWED_PRODUCT_PRIORITIES),
+        "Priority must be low, medium, or high.",
+    )
+    if priority_error:
+        errors.append(priority_error)
+    data["priority"] = priority
+
+    data["version_label"] = form.get("version_label", "").strip()
+    data["entry_date"] = form.get("entry_date", "").strip()
+    data["summary"] = form.get("summary", "").strip()
+    data["testing_notes"] = form.get("testing_notes", "").strip()
+    data["known_issues"] = form.get("known_issues", "").strip()
+    return data, errors
 
 def normalize_flavours(raw: str) -> str:
     parts = [part.strip() for part in raw.split(",") if part.strip()]
@@ -989,6 +1175,27 @@ def fetch_brews_for_bag(bag_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def fetch_steps_for_brew_ids(brew_ids: list[int]) -> dict[int, list[sqlite3.Row]]:
+    if not brew_ids:
+        return {}
+    placeholders = ",".join(["?" for _ in brew_ids])
+    conn = get_db()
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM brew_steps
+        WHERE brew_id IN ({placeholders})
+        ORDER BY brew_id, step_order ASC
+        """,
+        brew_ids,
+    ).fetchall()
+    conn.close()
+    grouped: dict[int, list[sqlite3.Row]] = {}
+    for row in rows:
+        grouped.setdefault(row["brew_id"], []).append(row)
+    return grouped
+
+
 def fetch_grind_insights(bag_id: int) -> list[sqlite3.Row]:
     conn = get_db()
     rows = conn.execute(
@@ -1003,6 +1210,46 @@ def fetch_grind_insights(bag_id: int) -> list[sqlite3.Row]:
     ).fetchall()
     conn.close()
     return rows
+
+
+def build_product_log_filters(args: Any) -> tuple[str, list[Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    for field in ("entry_kind", "status", "priority"):
+        value = args.get(field, "").strip()
+        if not value:
+            continue
+        clauses.append(f"{field} = ?")
+        params.append(value)
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    return where, params
+
+
+def fetch_product_log_entries(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
+    where, params = filters
+    conn = get_db()
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM product_log_entries
+        {where}
+        ORDER BY COALESCE(entry_date, created_at) DESC, updated_at DESC
+        """
+        ,
+        params,
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def fetch_product_log_entry(entry_id: int) -> sqlite3.Row | None:
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM product_log_entries WHERE id = ?",
+        (entry_id,),
+    ).fetchone()
+    conn.close()
+    return row
 
 
 def fetch_bags_for_equator(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
@@ -1112,9 +1359,12 @@ def add_coffee() -> Any:
         if not bag_only_mode and not bag_id:
             errors.append("Select an existing bag.")
         brew_data: dict[str, Any] = {}
+        brew_steps: list[dict[str, Any]] = []
         if not bag_only_mode:
             brew_data, brew_errors = validate_brew_payload(request.form)
             errors.extend(brew_errors)
+            brew_steps, step_errors = parse_brew_steps(request.form.get("brew_steps_json"))
+            errors.extend(step_errors)
 
         if errors:
             for error in errors:
@@ -1124,7 +1374,7 @@ def add_coffee() -> Any:
             if bag_only_mode:
                 bag_id = insert_bag(conn, bag_data, request.files.get("bag_photo"))
             else:
-                conn.execute(
+                brew_cursor = conn.execute(
                     """
                     INSERT INTO brews (
                         bag_id, date, rating, brew_style, grinder, logged_by_user,
@@ -1154,6 +1404,23 @@ def add_coffee() -> Any:
                         datetime.utcnow().isoformat(timespec="seconds"),
                     ),
                 )
+                brew_id = int(brew_cursor.lastrowid)
+                for step in brew_steps:
+                    conn.execute(
+                        """
+                        INSERT INTO brew_steps (
+                            brew_id, step_order, start_seconds, end_seconds, label_text, liquid_text
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            brew_id,
+                            step["step_order"],
+                            step["start_seconds"],
+                            step["end_seconds"],
+                            step["label_text"],
+                            step["liquid_text"],
+                        ),
+                    )
             conn.commit()
             conn.close()
             flash("Bag added successfully." if bag_only_mode else "Brew logged successfully.", "success")
@@ -1313,6 +1580,7 @@ def bag_detail(bag_id: int) -> Any:
         return redirect(url_for("bags_view"))
     brews = fetch_brews_for_bag(bag_id)
     grind_insights = fetch_grind_insights(bag_id)
+    brew_steps_by_brew = fetch_steps_for_brew_ids([int(brew["id"]) for brew in brews])
     latest_brew_id = brews[0]["id"] if brews else None
     dial_in_assistant = build_dial_in_assistant(brews)
     return render_template(
@@ -1320,6 +1588,7 @@ def bag_detail(bag_id: int) -> Any:
         bag=bag,
         brews=brews,
         grind_insights=grind_insights,
+        brew_steps_by_brew=brew_steps_by_brew,
         latest_brew_id=latest_brew_id,
         dial_in_assistant=dial_in_assistant,
     )
@@ -1338,6 +1607,183 @@ def update_bag_flavours(bag_id: int) -> Any:
     conn.close()
     flash("Bag flavours updated.", "success")
     return redirect(url_for("bag_detail", bag_id=bag_id))
+
+
+@app.route("/product-log")
+def product_log() -> Any:
+    init_db()
+    filters = build_product_log_filters(request.args)
+    entries = fetch_product_log_entries(filters)
+    return render_template(
+        "product_log.html",
+        entries=entries,
+        filters={
+            "entry_kind": request.args.get("entry_kind", "").strip(),
+            "status": request.args.get("status", "").strip(),
+            "priority": request.args.get("priority", "").strip(),
+        },
+        entry_kinds=ALLOWED_PRODUCT_ENTRY_KINDS,
+        statuses=ALLOWED_PRODUCT_STATUSES,
+        priorities=ALLOWED_PRODUCT_PRIORITIES,
+        today_date=datetime.now().date().isoformat(),
+    )
+
+
+@app.post("/product-log/quick-add")
+def product_log_quick_add() -> Any:
+    init_db()
+    title = request.form.get("title", "").strip()
+    summary = request.form.get("summary", "").strip()
+    priority = request.form.get("priority", "medium").strip() or "medium"
+    if not title:
+        flash("Quick add title is required.", "error")
+        return redirect(url_for("product_log"))
+    if priority not in ALLOWED_PRODUCT_PRIORITIES:
+        flash("Priority must be low, medium, or high.", "error")
+        return redirect(url_for("product_log"))
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    entry_date = datetime.now().date().isoformat()
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO product_log_entries (
+            title, entry_kind, status, priority, version_label,
+            entry_date, summary, testing_notes, known_issues,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            title,
+            "idea",
+            "idea",
+            priority,
+            "",
+            entry_date,
+            summary,
+            "",
+            "",
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    flash("Idea captured.", "success")
+    return redirect(url_for("product_log"))
+
+
+@app.post("/product-log")
+def create_product_log_entry() -> Any:
+    init_db()
+    payload, errors = parse_product_log_payload(request.form)
+    if errors:
+        for error in errors:
+            flash(error, "error")
+        return redirect(url_for("product_log"))
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO product_log_entries (
+            title, entry_kind, status, priority, version_label,
+            entry_date, summary, testing_notes, known_issues,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            payload["title"],
+            payload["entry_kind"],
+            payload["status"],
+            payload["priority"],
+            payload["version_label"],
+            payload["entry_date"],
+            payload["summary"],
+            payload["testing_notes"],
+            payload["known_issues"],
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    flash("Product log entry added.", "success")
+    return redirect(url_for("product_log"))
+
+
+@app.route("/product-log/<int:entry_id>/edit", methods=["GET", "POST"])
+def edit_product_log_entry(entry_id: int) -> Any:
+    init_db()
+    entry = fetch_product_log_entry(entry_id)
+    if not entry:
+        flash("Product log entry not found.", "error")
+        return redirect(url_for("product_log"))
+    if request.method == "POST":
+        payload, errors = parse_product_log_payload(request.form)
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template(
+                "product_log_edit.html",
+                entry=entry,
+                form_data=request.form,
+                entry_kinds=ALLOWED_PRODUCT_ENTRY_KINDS,
+                statuses=ALLOWED_PRODUCT_STATUSES,
+                priorities=ALLOWED_PRODUCT_PRIORITIES,
+            )
+        now = datetime.utcnow().isoformat(timespec="seconds")
+        conn = get_db()
+        conn.execute(
+            """
+            UPDATE product_log_entries
+            SET title = ?,
+                entry_kind = ?,
+                status = ?,
+                priority = ?,
+                version_label = ?,
+                entry_date = ?,
+                summary = ?,
+                testing_notes = ?,
+                known_issues = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                payload["title"],
+                payload["entry_kind"],
+                payload["status"],
+                payload["priority"],
+                payload["version_label"],
+                payload["entry_date"],
+                payload["summary"],
+                payload["testing_notes"],
+                payload["known_issues"],
+                now,
+                entry_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        flash("Product log entry updated.", "success")
+        return redirect(url_for("product_log"))
+    return render_template(
+        "product_log_edit.html",
+        entry=entry,
+        form_data=entry,
+        entry_kinds=ALLOWED_PRODUCT_ENTRY_KINDS,
+        statuses=ALLOWED_PRODUCT_STATUSES,
+        priorities=ALLOWED_PRODUCT_PRIORITIES,
+    )
+
+
+@app.post("/product-log/<int:entry_id>/delete")
+def delete_product_log_entry(entry_id: int) -> Any:
+    init_db()
+    conn = get_db()
+    conn.execute("DELETE FROM product_log_entries WHERE id = ?", (entry_id,))
+    conn.commit()
+    conn.close()
+    flash("Product log entry deleted.", "success")
+    return redirect(url_for("product_log"))
 
 
 @app.route("/stats")

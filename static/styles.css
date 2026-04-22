@@ -348,6 +348,141 @@ textarea {
   margin-top: 8px;
 }
 
+.brew-recorder {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.brew-recorder-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brew-recorder-time {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 14px;
+}
+
+.brew-recorder-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.brew-steps-table,
+.brew-steps-readonly {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.brew-steps-table th,
+.brew-steps-table td,
+.brew-steps-readonly th,
+.brew-steps-readonly td {
+  border-top: 1px solid var(--border);
+  padding: 6px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.brew-steps-table input {
+  width: 100%;
+  min-width: 120px;
+}
+
+.brew-steps-empty td {
+  color: var(--muted);
+}
+
+.product-log-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.product-log-quick-form,
+.product-log-form {
+  display: grid;
+  gap: 12px;
+}
+
+.product-log-filters {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  align-items: end;
+}
+
+.product-log-filter-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.product-log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.product-log-entry {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.product-log-entry-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.product-log-meta-date {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.product-log-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-log-summary,
+.product-log-subline {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.product-log-subline {
+  color: var(--muted);
+}
+
+.product-log-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  align-items: center;
+}
+
+.product-log-actions form {
+  margin: 0;
+}
+
+.product-log-delete {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+
 .dial-in-assistant {
   margin-top: 16px;
 }
@@ -1119,25 +1254,51 @@ button.secondary,
 }
 
 .brew-style-icon {
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   display: inline-block;
-  background-size: 14px 14px;
+  background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
-  filter: grayscale(1) brightness(0);
 }
 
 .brew-style-icon--v60 {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M6 3h12l-2 5-3 13h-2L8 8z'/%3E%3C/svg%3E");
+  background-image: url("/static/icons/icon-v60.svg");
 }
 
 .brew-style-icon--moka {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 3h8l2 6-2 10H8L6 9zM5 9h2v8H5zM18 9h1.5A2.5 2.5 0 0 1 22 11.5v2A2.5 2.5 0 0 1 19.5 16H18z'/%3E%3C/svg%3E");
+  background-image: url("/static/icons/icon-moka.svg");
 }
 
 .brew-style-icon--aeropress {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M8 2h8v3H8zm1 4h6l1 12H8zm-1 12h8v2H8zm10-10h3v5h-3z'/%3E%3C/svg%3E");
+  background-image: url("/static/icons/icon-aeropress.svg");
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-block;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.user-icon--nicholas {
+  background-image: url("/static/icons/icon-user-nicholas.svg");
+}
+
+.user-icon--belinda {
+  background-image: url("/static/icons/icon-user-belinda.svg");
+}
+
+.user-icon--default {
+  background-image: url("/static/icons/icon-user-nicholas.svg");
 }
 
 .brew-entry-block + .brew-entry-block {
