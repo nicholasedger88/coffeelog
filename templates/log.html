@@ -85,7 +85,19 @@
               </div>
               <div class="detail-row">
                 <span class="detail-label">Logged by</span>
-                <span class="detail-value">{{ coffee.logged_by_user or "—" }}</span>
+                <span class="detail-value">
+                  {% if coffee.logged_by_user %}
+                    <span class="user-chip">
+                      <span
+                        class="user-icon {% if coffee.logged_by_user == 'Nicholas' %}user-icon--nicholas{% elif coffee.logged_by_user == 'Belinda' %}user-icon--belinda{% else %}user-icon--default{% endif %}"
+                        aria-hidden="true"
+                      ></span>
+                      {{ coffee.logged_by_user }}
+                    </span>
+                  {% else %}
+                    —
+                  {% endif %}
+                </span>
               </div>
               {% if coffee.altitude_m %}
                 {% set position = coffee.altitude_m / 2500 * 100 %}

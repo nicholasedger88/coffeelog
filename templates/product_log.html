@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-header">
+  <div>
+    <h1>Product Log</h1>
+    <p>Track ideas, bugs, refinements, and shipped changes in one place.</p>
+  </div>
+</section>
+
+<section class="card product-log-panel">
+  <div class="section-header">
+    <h3>Quick add idea</h3>
+    <p>Capture a new thought fast.</p>
+  </div>
+  <form method="post" action="{{ url_for('product_log_quick_add') }}" class="product-log-quick-form">
+    <div class="form-grid">
+      <label>
+        Title *
+        <input type="text" name="title" required maxlength="200" placeholder="e.g. Add brew profile compare view" />
+      </label>
+      <label>
+        Priority
+        <select name="priority">
+          {% for item in priorities %}
+            <option value="{{ item }}" {% if item == 'medium' %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <label>
+      Summary
+      <textarea name="summary" rows="2" placeholder="Optional short context"></textarea>
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="primary">Save idea</button>
+    </div>
+  </form>
+</section>
+
+<section class="card product-log-panel">
+  <div class="section-header">
+    <h3>Add entry</h3>
+    <p>Use this for features, bugs, refinements, and release notes.</p>
+  </div>
+  <form method="post" action="{{ url_for('create_product_log_entry') }}" class="product-log-form">
+    <div class="form-grid">
+      <label>
+        Title *
+        <input type="text" name="title" required maxlength="200" />
+      </label>
+      <label>
+        Entry kind *
+        <select name="entry_kind" required>
+          {% for item in entry_kinds %}
+            <option value="{{ item }}">{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Status *
+        <select name="status" required>
+          {% for item in statuses %}
+            <option value="{{ item }}">{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Priority
+        <select name="priority">
+          {% for item in priorities %}
+            <option value="{{ item }}" {% if item == 'medium' %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>
+        Version label
+        <input type="text" name="version_label" placeholder="e.g. 0.3.0" />
+      </label>
+      <label>
+        Entry date
+        <input type="date" name="entry_date" value="{{ today_date }}" />
+      </label>
+    </div>
+    <label>
+      Summary
+      <textarea name="summary" rows="3"></textarea>
+    </label>
+    <div class="form-grid">
+      <label>
+        Testing notes
+        <textarea name="testing_notes" rows="3"></textarea>
+      </label>
+      <label>
+        Known issues
+        <textarea name="known_issues" rows="3"></textarea>
+      </label>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="primary">Save entry</button>
+    </div>
+  </form>
+</section>
+
+<section class="card product-log-panel">
+  <div class="section-header">
+    <h3>Entries</h3>
+    <p>Newest first, with quick filtering.</p>
+  </div>
+
+  <form method="get" class="filter-form product-log-filters">
+    <label>
+      Kind
+      <select name="entry_kind">
+        <option value="">All</option>
+        {% for item in entry_kinds %}
+          <option value="{{ item }}" {% if filters.entry_kind == item %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Status
+      <select name="status">
+        <option value="">All</option>
+        {% for item in statuses %}
+          <option value="{{ item }}" {% if filters.status == item %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Priority
+      <select name="priority">
+        <option value="">All</option>
+        {% for item in priorities %}
+          <option value="{{ item }}" {% if filters.priority == item %}selected{% endif %}>{{ item|replace('_', ' ')|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <div class="product-log-filter-actions">
+      <button type="submit" class="secondary">Apply</button>
+      <a class="text-link" href="{{ url_for('product_log') }}">Clear</a>
+    </div>
+  </form>
+
+  <div class="product-log-list">
+    {% for entry in entries %}
+      <article class="product-log-entry">
+        <header class="product-log-entry-header">
+          <strong>{{ entry.title }}</strong>
+          <span class="product-log-meta-date">{{ entry.entry_date or entry.created_at[:10] }}</span>
+        </header>
+        <div class="product-log-chips">
+          <span class="chip">{{ entry.entry_kind|replace('_', ' ')|title }}</span>
+          <span class="chip">{{ entry.status|replace('_', ' ')|title }}</span>
+          <span class="chip">Priority: {{ entry.priority|title }}</span>
+          {% if entry.version_label %}
+            <span class="chip">{{ entry.version_label }}</span>
+          {% endif %}
+        </div>
+        {% if entry.summary %}
+          <p class="product-log-summary">{{ entry.summary }}</p>
+        {% endif %}
+        {% if entry.testing_notes %}
+          <p class="product-log-subline"><strong>Testing:</strong> {{ entry.testing_notes }}</p>
+        {% endif %}
+        {% if entry.known_issues %}
+          <p class="product-log-subline"><strong>Known issues:</strong> {{ entry.known_issues }}</p>
+        {% endif %}
+        <footer class="product-log-actions">
+          <a class="text-link" href="{{ url_for('edit_product_log_entry', entry_id=entry.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('delete_product_log_entry', entry_id=entry.id) }}" onsubmit="return confirm('Delete this product log entry?');">
+            <button type="submit" class="text-link product-log-delete">Delete</button>
+          </form>
+        </footer>
+      </article>
+    {% else %}
+      <p class="empty">No product log entries yet.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

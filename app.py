@@ -28,6 +28,17 @@ BELINDA_SETTINGS = [str(i) for i in range(1, 13)]
 ALLOWED_BREW_STYLES = ["Aeropress", "Moka pot", "V60"]
 ALLOWED_USERS = ["Nicholas", "Belinda"]
 ALLOWED_PROCESSES = ["washed", "natural", "anaerobic", "honey", "experimental"]
+ALLOWED_PRODUCT_ENTRY_KINDS = ["idea", "feature", "bug", "refinement", "release_note"]
+ALLOWED_PRODUCT_STATUSES = [
+    "idea",
+    "planned",
+    "in_progress",
+    "blocked",
+    "tested",
+    "live",
+    "archived",
+]
+ALLOWED_PRODUCT_PRIORITIES = ["low", "medium", "high"]
 ELEVATION_API = "https://api.open-elevation.com/api/v1/lookup"
 COUNTRY_CODES = {
     "Brazil": "BR",
@@ -1120,6 +1131,46 @@ def fetch_grind_insights(bag_id: int) -> list[sqlite3.Row]:
     return rows
 
 
+def build_product_log_filters(args: Any) -> tuple[str, list[Any]]:
+    clauses: list[str] = []
+    params: list[Any] = []
+    for field in ("entry_kind", "status", "priority"):
+        value = args.get(field, "").strip()
+        if not value:
+            continue
+        clauses.append(f"{field} = ?")
+        params.append(value)
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    return where, params
+
+
+def fetch_product_log_entries(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
+    where, params = filters
+    conn = get_db()
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM product_log_entries
+        {where}
+        ORDER BY COALESCE(entry_date, created_at) DESC, updated_at DESC
+        """
+        ,
+        params,
+    ).fetchall()
+    conn.close()
+    return rows
+
+
+def fetch_product_log_entry(entry_id: int) -> sqlite3.Row | None:
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM product_log_entries WHERE id = ?",
+        (entry_id,),
+    ).fetchone()
+    conn.close()
+    return row
+
+
 def fetch_bags_for_equator(filters: tuple[str, list[Any]]) -> list[sqlite3.Row]:
     where, params = filters
     conn = get_db()
@@ -1475,6 +1526,183 @@ def update_bag_flavours(bag_id: int) -> Any:
     conn.close()
     flash("Bag flavours updated.", "success")
     return redirect(url_for("bag_detail", bag_id=bag_id))
+
+
+@app.route("/product-log")
+def product_log() -> Any:
+    init_db()
+    filters = build_product_log_filters(request.args)
+    entries = fetch_product_log_entries(filters)
+    return render_template(
+        "product_log.html",
+        entries=entries,
+        filters={
+            "entry_kind": request.args.get("entry_kind", "").strip(),
+            "status": request.args.get("status", "").strip(),
+            "priority": request.args.get("priority", "").strip(),
+        },
+        entry_kinds=ALLOWED_PRODUCT_ENTRY_KINDS,
+        statuses=ALLOWED_PRODUCT_STATUSES,
+        priorities=ALLOWED_PRODUCT_PRIORITIES,
+        today_date=datetime.now().date().isoformat(),
+    )
+
+
+@app.post("/product-log/quick-add")
+def product_log_quick_add() -> Any:
+    init_db()
+    title = request.form.get("title", "").strip()
+    summary = request.form.get("summary", "").strip()
+    priority = request.form.get("priority", "medium").strip() or "medium"
+    if not title:
+        flash("Quick add title is required.", "error")
+        return redirect(url_for("product_log"))
+    if priority not in ALLOWED_PRODUCT_PRIORITIES:
+        flash("Priority must be low, medium, or high.", "error")
+        return redirect(url_for("product_log"))
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    entry_date = datetime.now().date().isoformat()
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO product_log_entries (
+            title, entry_kind, status, priority, version_label,
+            entry_date, summary, testing_notes, known_issues,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            title,
+            "idea",
+            "idea",
+            priority,
+            "",
+            entry_date,
+            summary,
+            "",
+            "",
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    flash("Idea captured.", "success")
+    return redirect(url_for("product_log"))
+
+
+@app.post("/product-log")
+def create_product_log_entry() -> Any:
+    init_db()
+    payload, errors = parse_product_log_payload(request.form)
+    if errors:
+        for error in errors:
+            flash(error, "error")
+        return redirect(url_for("product_log"))
+    now = datetime.utcnow().isoformat(timespec="seconds")
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO product_log_entries (
+            title, entry_kind, status, priority, version_label,
+            entry_date, summary, testing_notes, known_issues,
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            payload["title"],
+            payload["entry_kind"],
+            payload["status"],
+            payload["priority"],
+            payload["version_label"],
+            payload["entry_date"],
+            payload["summary"],
+            payload["testing_notes"],
+            payload["known_issues"],
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+    flash("Product log entry added.", "success")
+    return redirect(url_for("product_log"))
+
+
+@app.route("/product-log/<int:entry_id>/edit", methods=["GET", "POST"])
+def edit_product_log_entry(entry_id: int) -> Any:
+    init_db()
+    entry = fetch_product_log_entry(entry_id)
+    if not entry:
+        flash("Product log entry not found.", "error")
+        return redirect(url_for("product_log"))
+    if request.method == "POST":
+        payload, errors = parse_product_log_payload(request.form)
+        if errors:
+            for error in errors:
+                flash(error, "error")
+            return render_template(
+                "product_log_edit.html",
+                entry=entry,
+                form_data=request.form,
+                entry_kinds=ALLOWED_PRODUCT_ENTRY_KINDS,
+                statuses=ALLOWED_PRODUCT_STATUSES,
+                priorities=ALLOWED_PRODUCT_PRIORITIES,
+            )
+        now = datetime.utcnow().isoformat(timespec="seconds")
+        conn = get_db()
+        conn.execute(
+            """
+            UPDATE product_log_entries
+            SET title = ?,
+                entry_kind = ?,
+                status = ?,
+                priority = ?,
+                version_label = ?,
+                entry_date = ?,
+                summary = ?,
+                testing_notes = ?,
+                known_issues = ?,
+                updated_at = ?
+            WHERE id = ?
+            """,
+            (
+                payload["title"],
+                payload["entry_kind"],
+                payload["status"],
+                payload["priority"],
+                payload["version_label"],
+                payload["entry_date"],
+                payload["summary"],
+                payload["testing_notes"],
+                payload["known_issues"],
+                now,
+                entry_id,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        flash("Product log entry updated.", "success")
+        return redirect(url_for("product_log"))
+    return render_template(
+        "product_log_edit.html",
+        entry=entry,
+        form_data=entry,
+        entry_kinds=ALLOWED_PRODUCT_ENTRY_KINDS,
+        statuses=ALLOWED_PRODUCT_STATUSES,
+        priorities=ALLOWED_PRODUCT_PRIORITIES,
+    )
+
+
+@app.post("/product-log/<int:entry_id>/delete")
+def delete_product_log_entry(entry_id: int) -> Any:
+    init_db()
+    conn = get_db()
+    conn.execute("DELETE FROM product_log_entries WHERE id = ?", (entry_id,))
+    conn.commit()
+    conn.close()
+    flash("Product log entry deleted.", "success")
+    return redirect(url_for("product_log"))
 
 
 @app.route("/stats")

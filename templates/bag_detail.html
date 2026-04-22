@@ -171,7 +171,20 @@
         <div class="brew-entry-block brew-entry-grind">
           {{ brew.grinder }} · {{ brew.grind_setting|format_grind(brew.grinder) }}
         </div>
-        <div class="brew-entry-block brew-entry-grind">Logged by: {{ brew.logged_by_user or "—" }}</div>
+        <div class="brew-entry-block brew-entry-grind">
+          Logged by:
+          {% if brew.logged_by_user %}
+            <span class="user-chip">
+              <span
+                class="user-icon {% if brew.logged_by_user == 'Nicholas' %}user-icon--nicholas{% elif brew.logged_by_user == 'Belinda' %}user-icon--belinda{% else %}user-icon--default{% endif %}"
+                aria-hidden="true"
+              ></span>
+              {{ brew.logged_by_user }}
+            </span>
+          {% else %}
+            —
+          {% endif %}
+        </div>
         <div class="brew-entry-block brew-entry-rating">Rating: {{ brew.rating }} / 5</div>
         {% if brew.notes %}
           <div class="brew-entry-block brew-entry-notes notes-block">
