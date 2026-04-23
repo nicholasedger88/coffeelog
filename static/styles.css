@@ -1179,15 +1179,15 @@ button.secondary,
 }
 
 .brew-style-icon--v60 {
-  background-image: url("/static/icons/icon-v60.svg");
+  background-image: url("icons/icon-v60.svg");
 }
 
 .brew-style-icon--moka {
-  background-image: url("/static/icons/icon-moka.svg");
+  background-image: url("icons/icon-moka.svg");
 }
 
 .brew-style-icon--aeropress {
-  background-image: url("/static/icons/icon-aeropress.svg");
+  background-image: url("icons/icon-aeropress.svg");
 }
 
 .user-chip {

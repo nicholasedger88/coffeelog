@@ -44,6 +44,7 @@
     <script src="{{ url_for('static', filename='app.js') }}"></script>
     <script>
       window.countryFlags = {{ country_flags|tojson }};
+      window.logUrl = "{{ url_for('log') }}";
     </script>
     {% block scripts %}{% endblock %}
   </body>
