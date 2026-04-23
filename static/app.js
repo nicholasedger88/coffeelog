@@ -519,8 +519,9 @@ const setupMapView = () => {
       .filter(Boolean)
       .join(" · ");
     const altitudeLine = coffee.altitude_m ? `⛰ ${coffee.altitude_m} m` : "";
+    const logUrl = window.logUrl || "/log";
     const linkLine = coffee.id
-      ? `<a class="popup-link" href="/log?entry_id=${coffee.id}">View entry</a>`
+      ? `<a class="popup-link" href="${logUrl}?entry_id=${coffee.id}">View entry</a>`
       : "";
     const details = `
       <div class="popup-card">

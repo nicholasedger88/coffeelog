@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 import os
 from datetime import datetime
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
@@ -14,9 +16,12 @@ import requests
 import reverse_geocoder as rg
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 from PIL import Image
+from werkzeug.utils import secure_filename
 
 BASE_DIR = Path(__file__).resolve().parent
-DATABASE = BASE_DIR / "coffeelog.db"
+DEFAULT_DATABASE = BASE_DIR / "coffeelog.db"
+DEFAULT_UPLOAD_FOLDER = BASE_DIR / "static" / "uploads" / "bags"
+DEFAULT_LOG_DIR = BASE_DIR / "logs"
 
 ALLOWED_GRINDERS = ["Aergrind (Nicholas)", "Belinda’s grinder"]
 AERGRIND_SETTINGS = [
@@ -45,8 +50,40 @@ COUNTRY_CODES = {
 }
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("COFFEELOG_SECRET_KEY", "coffee-log-dev-only")
+app.secret_key = os.environ.get("SECRET_KEY") or os.environ.get("COFFEELOG_SECRET_KEY")
+if not app.secret_key:
+    raise RuntimeError("SECRET_KEY environment variable is required.")
+
+app.config["DATABASE_PATH"] = Path(
+    os.environ.get("DATABASE_PATH") or os.environ.get("COFFEELOG_DATABASE_PATH") or DEFAULT_DATABASE
+)
+app.config["UPLOAD_FOLDER"] = Path(
+    os.environ.get("UPLOAD_FOLDER") or os.environ.get("COFFEELOG_UPLOAD_FOLDER") or DEFAULT_UPLOAD_FOLDER
+)
+app.config["MAX_CONTENT_LENGTH"] = int(
+    os.environ.get("MAX_UPLOAD_SIZE_BYTES")
+    or os.environ.get("COFFEELOG_MAX_UPLOAD_SIZE_BYTES")
+    or 8 * 1024 * 1024
+)
 app.config["ALLOW_DEMO_SEED"] = os.environ.get("COFFEELOG_ALLOW_DEMO_SEED", "1") == "1"
+
+
+def configure_logging() -> None:
+    logs_dir = Path(os.environ.get("LOG_DIR") or os.environ.get("COFFEELOG_LOG_DIR") or DEFAULT_LOG_DIR)
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    handler = RotatingFileHandler(logs_dir / "app.log", maxBytes=1_048_576, backupCount=5)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
+    app.logger.setLevel(logging.INFO)
+    app.logger.handlers = []
+    app.logger.addHandler(handler)
+
+
+def ensure_upload_folder() -> None:
+    Path(app.config["UPLOAD_FOLDER"]).mkdir(parents=True, exist_ok=True)
+
+
+configure_logging()
+ensure_upload_folder()
 
 
 def emoji_flag(country_code: str) -> str:
@@ -287,7 +324,7 @@ CREATE TABLE IF NOT EXISTS brew_steps (
 
 
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(app.config["DATABASE_PATH"])
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -1191,18 +1228,27 @@ def save_bag_photo(bag_id: int, photo_file: Any) -> str | None:
     allowed_types = {"image/jpeg", "image/png"}
     if photo_file.mimetype not in allowed_types:
         return None
+    original_name = secure_filename(photo_file.filename)
+    if not original_name:
+        return None
     try:
         image = Image.open(photo_file)
     except (OSError, ValueError):
         return None
     image = image.convert("RGB")
     image.thumbnail((800, 800))
-    uploads_dir = BASE_DIR / "static" / "uploads" / "bags"
+    uploads_dir = Path(app.config["UPLOAD_FOLDER"])
     uploads_dir.mkdir(parents=True, exist_ok=True)
-    filename = f"bag-{bag_id}.webp"
+    filename = secure_filename(f"bag-{bag_id}-{Path(original_name).stem}.webp")
     output_path = uploads_dir / filename
     image.save(output_path, format="WEBP", quality=75)
-    return f"uploads/bags/{filename}"
+    try:
+        static_dir = BASE_DIR / "static"
+        relative_upload_path = output_path.relative_to(static_dir)
+        return str(relative_upload_path).replace("\\", "/")
+    except ValueError:
+        app.logger.warning("Upload folder should be inside static/ for serving files: %s", uploads_dir)
+        return None
 
 
 @app.route("/")
@@ -1913,6 +1959,11 @@ def seed_route() -> Any:
     return redirect(url_for("bags_view"))
 
 
+@app.route("/health")
+def health() -> Any:
+    return jsonify({"status": "ok"})
+
+
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True)
+    app.run(debug=False)
