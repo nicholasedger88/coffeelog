@@ -3,19 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Coffee Log</title>
+    <title>Ground Control</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   </head>
   <body>
     <header class="top-nav">
       <div class="nav-inner">
-        <a class="brand" href="{{ url_for('add_coffee') }}">Coffee Log</a>
+        <a class="brand" href="{{ url_for('add_coffee') }}">Ground Control</a>
         <nav>
           <a href="{{ url_for('add_coffee') }}">Add</a>
           <a href="{{ url_for('log') }}">Log</a>
           <a href="{{ url_for('bags_view') }}">Bags</a>
-          <a href="{{ url_for('product_log') }}">Product Log</a>
         </nav>
       </div>
     </header>
